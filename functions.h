@@ -23,15 +23,6 @@
 
 
 /*********************************STRUCTS************************************/
-
-// For multilevel feedback queue.
-typedef struct MultiLevelQueue {
-   int processEntries[MAX_SIZE];
-   int front;
-   int rear;
-} MultiLevelQueue;
-
-
 // For process table operations.
 struct PCB {
    int occupied;                            // Is the entry in the process table empty (0) or full (1)?
@@ -109,24 +100,15 @@ extern int currentChildIndex;
 //For initialization.
 void initializeLogfile();
 void initializeMessageQueue();
-void initializeFeedbackQueue(MultiLevelQueue *);
 
 // For user input validation.
 void checkForOptargEntryError(int, char []);
 void checkForSimulExceedsProcError(int, int);
 
-// For feedback queue.
-bool isQueueEmpty(MultiLevelQueue *);
-void enqueue(MultiLevelQueue *, pid_t);
-pid_t dequeue(MultiLevelQueue *);
-pid_t peekQueue(MultiLevelQueue *);
-void printAllFeedbackQueues(MultiLevelQueue *);
-void printOneQueue(MultiLevelQueue *);
-
 // For system clock/time operations.
 long long int incrementClock(int *, long long int *, int);
 long long int convertSystemTimeToNanosecondsOnly (int *, long long int *);
-long long int determineNextLaunchNanoseconds(long long int, long long int);
+long long int determineNextLaunchNanoseconds(int, long long int);
 int determineDispatchTime();
 long long int determineEventWaitTime(int, int, long long int);
 int determineTimeQuantum(int);
@@ -137,7 +119,7 @@ int addToProcessTable(pid_t);
 int findIndexInProcessTable(pid_t);
 void addServiceTimeToProcessTable(int);
 void addWaitTimeToProcessTable(long long int, int);
-void possiblyUnblockChild(MultiLevelQueue *);
+//void possiblyUnblockChild(MultiLevelQueue *);
 void removeFromProcessTable(pid_t);
 void printProcessTable();
 void printProcessTableToLogfile();

@@ -33,11 +33,6 @@ void initializeMessageQueue() {
    printf("Message queue is now set up.\n\n");
 }
 
-void initializeFeedbackQueue(MultiLevelQueue *queue) {
-   queue->front = -1;
-   queue->rear = -1;
-}
-
 
 // Displays error messages based on 'optarg' arguments.
 void checkForOptargEntryError(int value, char getoptArgument[]) {
@@ -70,106 +65,6 @@ void checkForSimulExceedsProcError(int simulProcesses, int totalProcesses) {
    }
 }
 
-
-bool isQueueEmpty(MultiLevelQueue *queue) {
-   bool frontNeverInitialized = (queue->front == -1);
-   bool allElementsDequeued = (queue->front  >  queue->rear);
-
-   if (frontNeverInitialized == true || allElementsDequeued == true) {
-      return true;
-   }
-
-   return false;
-}
-
-
-// Add process to back of queue.
-void enqueue(MultiLevelQueue *queue, pid_t pid) {
-   if (queue->rear >= MAX_SIZE - 1) { 
-      printf("ERROR in oss.c: enqueue() function failed. Queue overflow occurred.\n");
-      
-      periodicallyTerminateProgram(-1);
-   }
-
-   slowDownProgram();
-
-   if (isQueueEmpty(queue) == true) {
-      queue->front = 0;
-      queue->rear = 0;
-   }
-   else {
-      queue->rear++;
-   }
- 
-   queue->processEntries[queue->rear] = pid;
-}
-
-// Remove process from back of queue.
-pid_t dequeue(MultiLevelQueue *queue) {
-   if (isQueueEmpty(queue) == true) {
-      printf("ERROR in oss.c: dequeue() function failed. Queue underflow occurred.\n");
-     
-     
-      periodicallyTerminateProgram(-1);
-   }   
-
-   slowDownProgram(); 
-
-   pid_t processID = queue->processEntries[queue->front];
-   
-   queue->front++;
-
-   if (queue->front > queue->rear) {
-      initializeFeedbackQueue(queue);
-   }
-
-
-   return processID;
-}
-
-// Return value at front of queue WITHOUT removing it.
-pid_t peekQueue(MultiLevelQueue *queue) {
-   if (isQueueEmpty(queue) == false) {
-      int front = queue->front;
-      int frontValue = queue->processEntries[front];
-
-      return frontValue;
-   }
-
-   return -1;
-}
-
-void printAllFeedbackQueues(MultiLevelQueue queue[]) {
-   int i;
-   for (i = 0; i < QUEUE_COUNT; i++) {
-      printf("Queue %d: ", i);
-      fprintf(logOutputFP, "Queue %d: ", i);
-
-      printOneQueue(&queue[i]);
-   }
-   printf("\n");
-   fprintf(logOutputFP, "\n");
-}
-
-void printOneQueue(MultiLevelQueue *queue) {
-   if (isQueueEmpty(queue) == true) {
-      printf("(empty)\n");
-      fprintf(logOutputFP, "(empty)\n");
-
-      return;
-   }
-
-   int i;
-   for (i = queue->front; i <= queue->rear; i++) {
-      printf("%d ", queue->processEntries[i]);
-      fprintf(logOutputFP, "%d ", queue->processEntries[i]);
-   }
-   
-   printf("\n");
-   fprintf(logOutputFP, "\n");
-}
-
-
 // Adjust system time's seconds and nanoseconds.
 long long int incrementClock(int *seconds, long long int *nanoseconds, int increment) {
    (*nanoseconds) += increment;
@@ -201,10 +96,20 @@ long long int convertSystemTimeToNanosecondsOnly(int *seconds, long long int *na
     
 
 // Only deals with system nanoseconds to determine next launch time. 
-long long int determineNextLaunchNanoseconds (long long int maxTimeBetweenProcesses, long long int currentNanoTime) {
+/*long long int determineNextLaunchNanoseconds (long long int maxTimeBetweenProcesses, long long int currentNanoTime) {
    long long int waitTime = (rand() % (maxTimeBetweenProcesses + 1));
 
    return waitTime + currentNanoTime;
+}
+*/
+
+// Only deals with system nanoseconds to determine next launch time.
+// System seconds is implicitly dealt with in main().
+long long int determineNextLaunchNanoseconds (int intervalMS, long long int oldLaunchTime) {
+    long long int nanoConversion = (long long int)intervalMS * 1000000;
+    long long int newLaunchTime = oldLaunchTime + nanoConversion;
+
+    return newLaunchTime;
 }
 
       
@@ -320,7 +225,7 @@ void addWaitTimeToProcessTable(long long int waitTime, int i) {
       processTable[i].eventWaitNanoseconds -= oneBillionNanoseconds;
    }
 }
-
+/*
 void possiblyUnblockChild(MultiLevelQueue *queue) {
    long long int eventWaitNanoOnly;
    long int dequeuedChild;
@@ -335,18 +240,18 @@ void possiblyUnblockChild(MultiLevelQueue *queue) {
          processTable[i].blocked = 0;
 
          while (dequeuedChild != processTable[i].processID) {
-	    dequeuedChild = dequeue(&queue[3]);
+//	    dequeuedChild = dequeue(&queue[3]);
       	    
 	    if (dequeuedChild == processTable[i].processID) {
 	       break;
 	    }
-	    enqueue(&queue[3], dequeuedChild);
+	 //   enqueue(&queue[3], dequeuedChild);
 	 }
-	 enqueue(&queue[0], processTable[i].processID);
+	 //enqueue(&queue[0], processTable[i].processID);
       }  
    }
 }   
-
+*/
 void removeFromProcessTable(pid_t pid) {
    int i;
    for (i = 0; i < 20; i++) {
@@ -378,10 +283,7 @@ void printProcessTable() {
   
    for (i = 0; i < 20; i++) {
       // Prints first 3 columns (Entry, Occupied, PID).
-      printf("%d\t %d\t\t %d\t", i, processTable[i].occupied, processTable[i].processID);
-      if (processTable[i].processID == 0) {
-         printf("\t");
-      }
+      printf("%d\t %d\t\t %d\t\t", i, processTable[i].occupied, processTable[i].processID);
 
       // Prints columns 4 and 5 (StartS, StartN).
       printf(" %d\t %ld\t", processTable[i].startSeconds, processTable[i].startNanoseconds);
