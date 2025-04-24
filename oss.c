@@ -102,9 +102,10 @@ int main(int argc, char** argv) {
    int opt;
    strcpy(logfileFP, logfile);
 
-   // Hardcoded values (that used to be user options).
+   // If user does not input the arguments corresponding to variables below, assign default values.
    int proc = 1;
    int simul = 1;
+   int intervalInMSToLaunchChildren = 500;
 
    // Determines a random time frame between process launches.
    long long int maxTimeBetweenNewProcsNS = halfBillionNanoseconds;
@@ -120,13 +121,38 @@ int main(int argc, char** argv) {
    strcpy(logfileFP, "logfile.txt");
 
    // User option for entering a logfile name.
+   char procName[] = "-n [proc]";
+   char simulName[] = "-s [simul]";
+   char intervalName[] = "-i [intervalInMSToLaunchChildren]";
    char logfileName[] = "-f [logfile]";
 
    
-   while ((opt = getopt(argc, argv, "hf:")) != -1) {
+   while ((opt = getopt(argc, argv, "hn:s:i:f:")) != -1) {
       switch (opt) {
          case 'h':
             printHelpMessage();
+
+	    break;
+
+         case 'n':
+            proc = atoi(optarg);
+	    checkForOptargEntryError(proc, procName);
+
+            break;
+
+         case 's':
+            simul = atoi(optarg);
+            checkForOptargEntryError(simul, simulName);
+	    checkForSimulExceedsProcError(simul, proc);
+
+            break;
+
+	 case 'i':
+	    intervalInMSToLaunchChildren = atoi(optarg);
+	    checkForOptargEntryError(intervalInMSToLaunchChildren, intervalName);
+
+	    nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, currentLaunchTimeNano);
+            currentLaunchTimeNano = nextLaunchTimeNano;
 
 	    break;
 
