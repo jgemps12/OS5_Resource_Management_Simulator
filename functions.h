@@ -17,6 +17,7 @@
 #include <sys/shm.h>
 #include <sys/msg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 
 
@@ -109,6 +110,10 @@ extern int currentChildIndex;
 void initializeLogfile();
 void initializeMessageQueue();
 void initializeFeedbackQueue(MultiLevelQueue *);
+
+// For user input validation.
+void checkForOptargEntryError(int, char []);
+void checkForSimulExceedsProcError(int, int);
 
 // For feedback queue.
 bool isQueueEmpty(MultiLevelQueue *);

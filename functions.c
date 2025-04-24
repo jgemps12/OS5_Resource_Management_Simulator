@@ -39,6 +39,38 @@ void initializeFeedbackQueue(MultiLevelQueue *queue) {
 }
 
 
+// Displays error messages based on 'optarg' arguments.
+void checkForOptargEntryError(int value, char getoptArgument[]) {
+   if ((value <= 0 || value > 10)  && (strcmp(getoptArgument, "-n [proc]") == 0)) {
+      printf("ERROR in oss.c: User must enter an integer between 1 and 10 for argument %s.\n\n", getoptArgument);
+
+      exit(-1);
+   }
+   if ((value <= 0 || value > 1000) && (strcmp(getoptArgument, "-i [intervalInMSToLaunchChildren]") == 0)) {
+      printf("ERROR in oss.c: User must enter an integer between 1 and 1000 for argument %s.\n\n", getoptArgument);
+
+      exit(-1);
+   }
+   if ((strcmp(getoptArgument, "-n [proc]") != 0) || (strcmp(getoptArgument, "-i [intervalInMSToLaunchChildren]") != 0)) {
+      if (value <= 0) {
+         printf("ERROR in oss.c: User must enter a positive integer for argument %s.\n\n", getoptArgument);
+
+         exit(-1);
+      }
+   }
+}
+
+
+// Displays error message if # of simlataneous processes exceeds the total process count.
+void checkForSimulExceedsProcError(int simulProcesses, int totalProcesses) {
+   if (simulProcesses > totalProcesses) {
+      printf("ERROR in oss.c: The -s [simul] value '%d' cannot be greater than the -n [proc] value '%d'.\n\n", simulProcesses, totalProcesses);
+
+      exit(-1);
+   }
+}
+
+
 bool isQueueEmpty(MultiLevelQueue *queue) {
    bool frontNeverInitialized = (queue->front == -1);
    bool allElementsDequeued = (queue->front  >  queue->rear);
@@ -463,7 +495,7 @@ void printHelpMessage() {
    printf("\t3.) a new process every 600 milliseconds.\n");
    printf("\t4.) while storing message statuses inside a file called 'storage.txt'.\n\n\n");
 
-   exit(0);
+   exit(EXIT_SUCCESS);
 }
 
 
