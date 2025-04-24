@@ -443,18 +443,25 @@ void receiveMessageFromUSER(int i) {
 void printHelpMessage() {
    printf("\n\n\nThis program displays information about child and parent processes, including:\n");
    printf("\t1.) A Process Control Block (PCB) table with child process entry information.\n");
-   printf("\t2.) Messages on the console and a logfile related to process scheduling.\n\n");
+   printf("\t2.) Messages on the console and a logfile related to process scheduling.\n");
 
 
    printf("\n\nTo execute this program, type './oss', then type in any combination of options:\n\n\n");
    printf("Option:                       What to enter after option:               Default values (if argu-      Description:\n");
-   printf("                                                                         ment is not entered):\n\n");
+   printf("                                                                         ment is not entered):\n");
    printf("  -h                           > nothing.                                 > (not applicable)           > Displays this help menu.\n"); 
+   printf("  -n [proc]                    > an integer between 1 and 10.             > defaults to 1.             > Runs a total # of processes.\n");
+   printf("  -s [simul]                   > an integer smaller than '-n [proc]'.     > defaults to 1.             > Runs a max # of processes simultaneously.\n");
+   printf("  -i [intervalInMS             > an integer between 1 and 1000.           > defaults to 500.           > Runs a new process every [interval\n");
+   printf("       ToLaunchChildren]                                                                                  inMSToLaunchChildren] milliseconds.\n");
    printf("  -f [logfile]                 > a file's basename.                       > defaults to 'logfile'      > Stores output relating to parent and\n");
-   printf("                                                                                                          child processes.\n\n\n"); 
+   printf("                                                                                                          child processes.\n\n"); 
 
-   printf("For example, typing './oss -f 'storage' will run the program:\n");
-   printf("\t1.) while storing message statuses inside a file called 'storage.txt'.\n\n\n");
+   printf("For example, typing './oss -n 6 -s 4 -i 600 -f storage' will run:\n");
+   printf("\t1.) a total of 6 processes.\n");
+   printf("\t2.) a maximum of 4 processes simultaneously.\n");
+   printf("\t3.) a new process every 600 milliseconds.\n");
+   printf("\t4.) while storing message statuses inside a file called 'storage.txt'.\n\n\n");
 
    exit(0);
 }
