@@ -112,17 +112,6 @@ long long int determineNextLaunchNanoseconds (int intervalMS, long long int oldL
     return newLaunchTime;
 }
 
-      
-// Generates a random dispatch time between 1000 and 10000 nanoseconds (for overhead).
-int determineDispatchTime () {
-   int maxNanoseconds = 10000;
-   int minNanoseconds = 1000;
-   int timeSpentInDispatch = rand() % (maxNanoseconds - minNanoseconds + 1) + 1000;
-
-   return timeSpentInDispatch;
-}
-
-
 // Generates a value between 1 and 5 seconds.
 long long int determineEventWaitTime(int secondsWaitTimeMax, int millisecondsWaitTimeMax, long long int systemClockTime) {
    int secondsToWait = rand() % secondsWaitTimeMax;
@@ -177,10 +166,13 @@ int addToProcessTable(pid_t pid) {
          processTable[i].processID = pid;
          processTable[i].startSeconds = systemClockSeconds;
          processTable[i].startNanoseconds = systemClockNano;
-	 processTable[i].serviceTimeSeconds = 0;
-	 processTable[i].serviceTimeNanoseconds = 0;
-	 processTable[i].eventWaitSeconds = 0;
-	 processTable[i].eventWaitNanoseconds = 0;
+
+	 int j;
+	 for (j = 0; j < 5; j++) {
+	    processTable[i].allocated[j] = 0;
+	    processTable[i].request[j] = 0;
+         }
+
 	 processTable[i].blocked = 0;
 
 
@@ -207,6 +199,7 @@ int findIndexInProcessTable(pid_t pid) {
    return -1;
 }
 
+/*
 void addServiceTimeToProcessTable(int i) {
    processTable[i].serviceTimeNanoseconds += receiveBuffer.quantumData;
 
@@ -215,8 +208,8 @@ void addServiceTimeToProcessTable(int i) {
       processTable[i].serviceTimeNanoseconds -= oneBillionNanoseconds;
    }
 }
-
-
+*/
+/*
 void addWaitTimeToProcessTable(long long int waitTime, int i) {
    processTable[i].eventWaitNanoseconds = waitTime;
 
@@ -225,6 +218,7 @@ void addWaitTimeToProcessTable(long long int waitTime, int i) {
       processTable[i].eventWaitNanoseconds -= oneBillionNanoseconds;
    }
 }
+*/
 /*
 void possiblyUnblockChild(MultiLevelQueue *queue) {
    long long int eventWaitNanoOnly;
@@ -260,10 +254,13 @@ void removeFromProcessTable(pid_t pid) {
          processTable[i].processID = 0;
          processTable[i].startSeconds = 0;
          processTable[i].startNanoseconds = 0;
-         processTable[i].serviceTimeSeconds = 0;
-         processTable[i].serviceTimeNanoseconds = 0;
-         processTable[i].eventWaitSeconds = 0;
-         processTable[i].eventWaitNanoseconds = 0;
+         
+	 int j;
+	 for (j = 0; j < 5; j++) {
+            processTable[i].allocated[j] = 0;
+            processTable[i].request[j] = 0;
+         }
+
          processTable[i].blocked = 0;
 
          break;
@@ -276,9 +273,9 @@ void removeFromProcessTable(pid_t pid) {
 void printProcessTable() {
    printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
    printf("Process Table:\n");
-   printf("Entry\t Occupied\t PID\t\t StartS\t StartN\t\t ServiceS\t ServiceN\t EventWaitS\t EventWaitN\t Blocked\n");
+   printf("Entry\t Occupied\t PID\t\t StartS\t StartN\t\t Allocated\t Request\t Blocked\n");
 
-   int i;
+   int i, j;
 
   
    for (i = 0; i < 20; i++) {
@@ -290,20 +287,20 @@ void printProcessTable() {
       if (processTable[i].startNanoseconds < 1000000) {
          printf("\t");
       }
+  
+      // Prints column 6 (Allocated).   
+      for (j = 0; j < 5; j++) {
+         printf(" %d", processTable[i].allocated[j]);
+      }
+      printf("\t");
       
-      // Prints columns 6 and 7 (ServiceS, ServiceN).
-      printf(" %d\t\t %ld\t", processTable[i].serviceTimeSeconds, processTable[i].serviceTimeNanoseconds);
-      if (processTable[i].serviceTimeNanoseconds < 1000000) {
-         printf("\t");
+      // Prints column 7 (Request).
+      for (j = 0; j < 5; j++) {
+         printf(" %d", processTable[i].request[j]);
       }
-
-      // Prints columns 8 and 9 (EventWaitS, EventWaitN).
-      printf(" %d\t\t %lld\t", processTable[i].eventWaitSeconds, processTable[i].eventWaitNanoseconds);
-      if (processTable[i].eventWaitNanoseconds < 1000000) {
-         printf("\t");
-      }
-
-      // Prints column 10 (Blocked--the final column).
+      printf("\t");
+      
+      // Prints column 8 (Blocked--the final column).
       printf(" %d\n", processTable[i].blocked);
    }
 
@@ -315,9 +312,9 @@ void printProcessTableToLogfile() {
    fprintf(logOutputFP, "OSS: Outputting process table:\n");
    fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
    fprintf(logOutputFP, "Process Table:\n");
-   fprintf(logOutputFP, "Entry\t Occupied\t PID\t\t StartS\t StartN\t\t ServiceS\t ServiceN\t EventWaitS\t EventWaitN\t Blocked\n");
+   fprintf(logOutputFP, "Entry\t Occupied\t PID\t\t StartS\t StartN\t\t Allocated\t Request\t Blocked\n");
 
-   int i;
+   int i, j;
 
 
    for (i = 0; i < 20; i++) {
@@ -333,19 +330,20 @@ void printProcessTableToLogfile() {
          fprintf(logOutputFP, "\t");
       }
 
-      // Prints columns 6 and 7 (ServiceS, ServiceN).
-      fprintf(logOutputFP, " %d\t\t %ld\t", processTable[i].serviceTimeSeconds, processTable[i].serviceTimeNanoseconds);
-      if (processTable[i].serviceTimeNanoseconds < 1000000) {
-         fprintf(logOutputFP, "\t");
+      // Prints column 6 (Allocated).
+      for (j = 0; j < 5; j++) {
+         fprintf(logOutputFP, " %d", processTable[i].allocated[j]);
       }
+      fprintf(logOutputFP, "\t");
 
-      // Prints columns 8 and 9 (EventWaitS, EventWaitN).
-      fprintf(logOutputFP, " %d\t\t %lld\t", processTable[i].eventWaitSeconds, processTable[i].eventWaitNanoseconds);
-      if (processTable[i].eventWaitNanoseconds < 1000000) {
-         fprintf(logOutputFP, "\t");
+      // Prints column 7 (Request).
+      for (j = 0; j < 5; j++) {
+         fprintf(logOutputFP, " %d", processTable[i].request[j]);
       }
+      fprintf(logOutputFP, "\t");
 
-      // Prints column 10 (Blocked--the final column).
+
+      // Prints column 8 (Blocked--the final column).
       fprintf(logOutputFP, " %d\n", processTable[i].blocked);
    }
 
