@@ -29,10 +29,8 @@ struct PCB {
    pid_t processID;                         // Child's process ID.
    int startSeconds;                        // Time when a process FORKED (in seconds).
    long int startNanoseconds;               // Time when a process FORKED (in nanoseconds).
-   int serviceTimeSeconds;                  // Total time when a process was SCHEDULED (in seconds).
-   long int serviceTimeNanoseconds;         // Total time when a process was SCHEDULED (in nanoseconds).
-   int eventWaitSeconds;                    // Time when a process becomes UNBLOCKED (in seconds).
-   long long int eventWaitNanoseconds;      // Time when a process becomes UNBLOCKED (in nanoseconds).
+   int allocated[5];                        // How many of each resource is allocated to a process.
+   int request[5];                          // Which resource is being requested (represented by an element containing 1).
    int blocked;                             // Is the process blocked (1) or unblocked (0)?
 };
 extern struct PCB processTable[20];
@@ -78,10 +76,6 @@ extern long int systemClockIncrement;
 extern int *secondsShared;
 extern long int *nanosecondsShared;
 
-// For process table operations.
-extern int lastTablePrintSeconds;
-extern long int lastTablePrintNano;
-
 // For time conversions.
 extern long int oneMillionNanoseconds;
 extern long int halfBillionNanoseconds;
@@ -109,7 +103,6 @@ void checkForSimulExceedsProcError(int, int);
 long long int incrementClock(int *, long long int *, int);
 long long int convertSystemTimeToNanosecondsOnly (int *, long long int *);
 long long int determineNextLaunchNanoseconds(int, long long int);
-int determineDispatchTime();
 long long int determineEventWaitTime(int, int, long long int);
 int determineTimeQuantum(int);
 void slowDownProgram();
