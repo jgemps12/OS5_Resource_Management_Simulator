@@ -111,11 +111,6 @@ int main(int argc, char** argv) {
    long long int nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, systemNanoOnly);
    long long int currentLaunchTimeNano = 0;
    
-   // Default time that process spends in dispatch. New values randomly generated.
-   int dispatchTime = 1000;
-   int maxWaitTimeSeconds = 5;
-   int maxWaitTimeMS = 1000;
-
    // Copies the default log file name into shared memory.
    strcpy(logfileFP, "logfile.txt");
 
@@ -185,15 +180,10 @@ int main(int argc, char** argv) {
    bool processesFinished = false;                                  // Determines whether the program should end.
    int childrenActive = 0;                                          // # of children running simultaneously (not to be confused with 'proc').
    int totalChildrenLaunched = 0;                                   // # of children launched so far (not to be confused with 'simul').  
-   int plannedTerminations = 0;
    int nextChild = 0;
-   int childWithServiceTime = -1;
-   int iterationBeforeBreak = 0;
-   int queueLevel = 0;
    int blocked = 0;
    
-   pid_t processDispatchedNext;
-
+ 
    // Initializes shared memory segments.
    *secondsShared = 0;
    *nanosecondsShared = 0;
@@ -216,6 +206,20 @@ int main(int argc, char** argv) {
    alarm(60);
 
 
+   // Resources allocated to each process.
+   int allocationMatrix[100];
+   initializeMatrix(allocationMatrix);
+
+   // Resources requested by each process.
+   int requestMatrix[100];
+   initializeMatrix(requestMatrix);
+
+   // # of TOTAL resources available for each resource type.
+   int resourceVector[5] = {10, 10, 10, 10, 10};
+
+   // # of resources available to allocate for each resource type.
+   int allocationVector[5] = {0, 0, 0, 0, 0};
+ 
 
    while (processesFinished == false) {
 
@@ -244,26 +248,19 @@ int main(int argc, char** argv) {
 	      break;
 	   }
 	   
-           long long int lastTablePrintout = (lastTablePrintSeconds * oneBillionNanoseconds) + lastTablePrintNano;
-
 	   if (realMicroseconds < 0) {
               realSeconds--;
 	      realMicroseconds += 1000000;
 	   }
 
-           if (systemNanoOnly - lastTablePrintout >= halfBillionNanoseconds) { 		   
+           if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) { 		   
 	      printProcessTable();
-
-	      lastTablePrintSeconds = systemClockSeconds;
-	      lastTablePrintNano = systemClockNano;
-//	      printProcessTable();
+	      printResourceTable(allocationMatrix);
            }
 
-	   // If no processes are ready, increment the clock 1 ms.
+	   // If no processes are ready, increment the clock by 1 ms.
 	   incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
- //          printf("from while(1) --> systemClockSeconds: %d\t systemClockNano: %lld\n", systemClockSeconds, systemClockNano); 
-  
-  
+
 
            // System time in shared memory constantly updates in loop.
            *secondsShared = systemClockSeconds;
@@ -271,8 +268,6 @@ int main(int argc, char** argv) {
 
 	   currentLaunchTimeNano = nextLaunchTimeNano;
 
-
-	   printf("systemNanoOnly: %lld\t nextLaunchTimeNano: %lld\t\t totalChildrenLaunched: %d\t childrenActive: %d\n", systemNanoOnly, nextLaunchTimeNano, totalChildrenLaunched, childrenActive);
            
 	   // Launches a child based on [maxTimeBetweenNewProcsNS]. 
 	   if (systemNanoOnly >= nextLaunchTimeNano) {
@@ -281,7 +276,7 @@ int main(int argc, char** argv) {
 
 	      processID = fork();
 
-               nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, currentLaunchTimeNano);
+              nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, currentLaunchTimeNano);
 	      	       
 	       // Makes sure system time updates EXACTLY to when a child launches, without rounding to the next 100 ms.
 	    // long int exactLaunchTime = currentLaunchTimeNano - systemNanoOnly;
@@ -305,12 +300,6 @@ int main(int argc, char** argv) {
 
          // Work with parent process. Send a message to a running child process.
 	 if (processID > 0 /* && realSeconds < 3*/) {
-            
-            // Always start new processes in the high-priority queue.
-            queueLevel = 0; 
-	
-	    processDispatchedNext = processID;
-	   
 	    childrenActive++;
 	    totalChildrenLaunched++;
 	  
@@ -326,37 +315,27 @@ int main(int argc, char** argv) {
                printf("Cannot add PID %d\n", processID);
             }
 
-	    printf("++OSS: Generating process with PID %d and putting it in queue 0 ", processID);
-            printf("at time %d:%lld\n\n", systemClockSeconds, systemClockNano);
-            fprintf(logOutputFP, "++OSS: Generating process with PID %d and putting it in queue 0 ", processID);
-            fprintf(logOutputFP, "at time %d:%lld\n\n", systemClockSeconds, systemClockNano);
-
-	    nextChild = findIndexInProcessTable(processDispatchedNext);
+	    printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
+            fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
          }
       }
      
 
-      // While-loop determines which child needs to be scheduled.
-      while (systemNanoOnly < nextLaunchTimeNano || totalChildrenLaunched == proc || childrenActive == simul) {
-	 
+      // For-loop acts as a Round-Robin scheduling mechanism.
+      for (nextChild = 0; nextChild < totalChildrenLaunched; nextChild++) {  
+
+
 	 // Print process table every half second of simulated system time. 
-         long long int lastPrintoutTime = (lastTablePrintSeconds * oneBillionNanoseconds) + lastTablePrintNano;
-            
-	 if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds/*(systemNanoOnly - lastPrintoutTime >= halfBillionNanoseconds)*/) {
-
+	 if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) {
    	    printProcessTable();
-
-            lastTablePrintSeconds = systemClockSeconds;
-            lastTablePrintNano = systemClockNano;
+	    printResourceTable(allocationMatrix);
          }   
          
 	 if (processTable[nextChild].occupied == 1 && processTable[nextChild].blocked == 0) {	    
 
             // A buffer stores information about what will be sent to a child.
             sendBuffer.messageType = processTable[nextChild].processID;
-	   
-	    sendBuffer.messageType = processDispatchedNext;
-            
+	             
 
 	    // 10, 20, or 40 ms time quantum sent to child.
 	    sendBuffer.quantumData = 40 * oneMillionNanoseconds;
@@ -366,129 +345,71 @@ int main(int argc, char** argv) {
 	    // Parent process sends a message to a child process. Output printed to a logfile.
 	    sendMessageToUSER();
   
+            printf("OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.messageType, systemClockSeconds, systemClockNano);
+            fprintf(logOutputFP, "OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.messageType, systemClockSeconds, systemClockNano);
+            fflush(logOutputFP);
 
-	    // Determine a random overhead time occurring after a process has just launched.
-	    dispatchTime = determineDispatchTime();
-   //   systemClockIncrement = incrementClock(&systemClockSeconds, &systemClockNano, dispatchTime);
-       
-            if (processDispatchedNext >= 0) {
-	
-               processDispatchedNext = sendBuffer.messageType;
-            
-               printf("OSS: Dispatching process with PID %ld from queue 0 ", sendBuffer.messageType); 
-	       printf("at time %d:%lld\n", systemClockSeconds, systemClockNano);
-	 //    printf("OSS: Total time spent in dispatch was %d nanoseconds\n", dispatchTime);
-	       fprintf(logOutputFP, "OSS: Dispatching process with PID %ld from queue 0 ", sendBuffer.messageType);
-	       fprintf(logOutputFP, "at time %d:%lld\n", systemClockSeconds, systemClockNano);
-     //        fprintf(logOutputFP, "OSS: Total time spent in dispatch was %d nanoseconds\n", dispatchTime);
-               fflush(logOutputFP);
-  
 
-	       // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
-	       // Also prevents multiple empty Process Tables from printing towards the program's end.
-	       int i; 
-               for (i = 0; i < 5000000; i++) {
-                  // Do nothing.
-               }  
+	    // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
+	    // Also prevents multiple empty Process Tables from printing towards the program's end.
+	    int i; 
+            for (i = 0; i < 5000000; i++) {
+               // Do nothing.
+            }  
            
 
-               // Another buffer stores info about what the parent receives from a child.
-               receiveBuffer.messageType = sendBuffer.messageType;
-	       receiveBuffer.quantumData = determineTimeQuantum(queueLevel);
+            // Another buffer stores info about what the parent receives from a child.
+            receiveBuffer.messageType = processTable[nextChild].processID;
+	    receiveBuffer.quantumData = sendBuffer.quantumData;
 
 
-	       // Parent process receives a message from a child process. Output printed to a logfile.
-	       receiveMessageFromUSER(nextChild);
+	    // Parent process receives a message from a child process. Output printed to a logfile.
+	    receiveMessageFromUSER(nextChild);
           
 
-	       // Increment clock based on a child's scheduled time.
-               int absoluteValueQuantData = abs(receiveBuffer.quantumData);
-	       printf("YEAHH, increment that clock\n");
-	       incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
+	    // Increment clock based on a child's scheduled time.
+	    incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
 	       
 	       
-	       // Prints duration of time that a process was scheduled.
-	       printf("OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", sendBuffer.messageType, receiveBuffer.quantumData);
-               fprintf(logOutputFP, "OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", receiveBuffer.messageType, receiveBuffer.quantumData);
+	    // Prints duration of time that a process was scheduled.
+	    printf("OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", sendBuffer.messageType, receiveBuffer.quantumData);
+	    fprintf(logOutputFP, "OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", receiveBuffer.messageType, receiveBuffer.quantumData);
   
 	   
-               // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
-               if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData > 0) {
-                  printf("**OSS: Did not use its entire time quantum**\n");
-                  fprintf(logOutputFP, "**OSS: Did not use its entire time quantum**\n");
+            // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
+            if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData > 0) {
+               printf("**OSS: Did not use its entire time quantum**\n");
+               fprintf(logOutputFP, "**OSS: Did not use its entire time quantum**\n");
                   
-                  printf("OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
-                  fprintf(logOutputFP, "OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
-
-		  
-	          processTable[nextChild].blocked = 1;
-                  printProcessTable();
-	          // Add accumulating schedule time info to the process table.
-                  childWithServiceTime = findIndexInProcessTable(sendBuffer.messageType);
-                  addServiceTimeToProcessTable(childWithServiceTime);
-	       
-		  // Determine when to unblock the process.
-                  long long int unblockTime = determineEventWaitTime(maxWaitTimeSeconds, maxWaitTimeMS, systemNanoOnly);	   
-                  addWaitTimeToProcessTable(unblockTime, nextChild);
-
-		  // Find child to schedule next.
-                  nextChild = findIndexInProcessTable(processDispatchedNext);
-
-	          if (processDispatchedNext < 0) {
-                     break;
-                  }
-
-	          continue;
-               }
+               printf("OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
+               fprintf(logOutputFP, "OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
 
 
-	       // If the user process sends back a negative number for a time quantum, end child process.
-               if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData < 0) {
-                  pid_t pid;
-
-		  printf("**OSS: Did not use its entire time quantum**\n");
-                  fprintf(logOutputFP, "**OSS: Did not use its entire time quantum**\n");
-
-                  removeFromProcessTable(sendBuffer.messageType);
-
-                  printf("---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
-                  fprintf(logOutputFP, "---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
-
-//		  printf("\n\n\ntotalChildrenLaunched: %d\t plannedTerminations: %d\n", totalChildrenLaunched, plannedTerminations);
-		
-                  plannedTerminations++;
-                  printf("\n\n\ntotalChildrenLaunched: %d\t plannedTerminations: %d\n", totalChildrenLaunched, plannedTerminations);
+	       processTable[nextChild].blocked = 1;
+               printProcessTable();
 
 
-                  // Find child to schedule next.
-                  nextChild = findIndexInProcessTable(processDispatchedNext);
-
-                  // If there are no running processes, break loop so that program can eventually generate more.
-	          if (processDispatchedNext < 0) {
-	             break;
-	          }
-	   
-                  continue;
-               }
-        
-	       // Add accumulating schedule time info to the process table.
-	       childWithServiceTime = findIndexInProcessTable(sendBuffer.messageType);
-	       addServiceTimeToProcessTable(childWithServiceTime);
+	       continue;
 	    }
-	 } 
-	    
-         if (iterationBeforeBreak == nextChild - 1) {
-               iterationBeforeBreak = 0;
-         }
-   
-	 if (totalChildrenLaunched == plannedTerminations) {
-          //printf("systemClockSeconds: %d\t systemClockNano: %lld\n", systemClockSeconds, systemClockNano);
 
- //         proc = plannedTerminations;
-            //printf("processDispatchedNext: %d\n", processDispatchedNext);  
+
+	    // If the user process sends back a negative number for a time quantum, end child process.
+            if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData < 0) {
+               pid_t pid;
+
+               removeFromProcessTable(sendBuffer.messageType);
+
+               printf("---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
+               fprintf(logOutputFP, "---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
+
+
+             	   
+               continue;
+            }
+	 }
+ 
 	    
-         }
-	 
+       
          // If no more children are running and the maximum # of total children have been launched, end loop/program.
          if (childrenActive == 0 && totalChildrenLaunched == proc) {
             processesFinished = true;
@@ -497,25 +418,18 @@ int main(int argc, char** argv) {
          }
 
 
-	    // If the limit of simultaneous children has been reached, but more still need to be launched, wait for them to terminate.
+	 // If the limit of simultaneous children has been reached, but more still need to be launched, wait for them to terminate.
          if (childrenActive == simul && totalChildrenLaunched < proc) {
             int status;
             pid_t pid;
           
-	    //printf("totalChildrenLaunched: %d\t plannedTerminations: %d\n", totalChildrenLaunched, plannedTerminations);
-
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                printf("pid: %d\n", pid);
 	       printf("waitpid()\n");
    	       removeFromProcessTable(pid);
-	       childrenActive--;
-	       
-	      // nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, systemNanoOnly);
-  //              printf("childrenActive: %d\n", childrenActive);
-
-               
+	       childrenActive--;  
 	    }
-	   // printf("realSeconds: %ld\n", realSeconds);
+
 	    break;
 	 }
 
@@ -531,17 +445,6 @@ int main(int argc, char** argv) {
             }
          }
 
-         	 
-	 // Break if it is time to launch a new process.
-         if (systemNanoOnly >= nextLaunchTimeNano && totalChildrenLaunched < proc) {
-            break;
-         }
-
-	 // Break if a process needs to terminate.
-         if (plannedTerminations == totalChildrenLaunched) {
-            break;
-         }
-         
          // Break if it is time to terminate the program.
          if (childrenActive == 0 && totalChildrenLaunched == proc) {  
             break;
