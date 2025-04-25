@@ -453,6 +453,7 @@ int main(int argc, char** argv) {
    }
    //printAllFeedbackQueues(queue);
    printProcessTable();
+   printResourceTable(allocationMatrix);
    
    fclose(logOutputFP);
    periodicallyTerminateProgram(EXIT_SUCCESS);

@@ -280,6 +280,7 @@ void removeFromProcessTable(pid_t pid) {
 
 // Output goes to console.
 void printProcessTable() {
+   printf("OSS: Outputting process table:\n");
    printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
    printf("Process Table:\n");
    printf("Entry\t Occupied\t PID\t\t StartS\t StartN\t\t Allocated\t Request\t Blocked\n");
@@ -313,7 +314,7 @@ void printProcessTable() {
       printf(" %d\n", processTable[i].blocked);
    }
 
-   printf("\n");
+   printf("\n\n");
 
    printProcessTableToLogfile();
 }
@@ -356,7 +357,52 @@ void printProcessTableToLogfile() {
       fprintf(logOutputFP, " %d\n", processTable[i].blocked);
    }
 
-   fprintf(logOutputFP, "\n");
+   fprintf(logOutputFP, "\n\n");
+}
+
+
+void printResourceTable(int matrix[]) {
+   printf("OSS: Outputting resource table:\n");
+   printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
+   printf("Resource table:\n");
+   printf("\t R0\t R1\t R2\t R3\t R4\n");
+   
+   int i, j, k;
+
+   for (i = 0; i < 20; i++) {
+      printf("P%d\t ", i);
+
+      for (j = 0; j < 5; j++) {
+         k = (5 * i) + j;
+	 
+	 printf("%d\t ", matrix[k]);
+      }
+      printf("\n");
+   }
+   printf("\n\n");
+
+   printResourceTableToLogfile(matrix);
+}
+
+void printResourceTableToLogfile(int matrix[]) {
+   fprintf(logOutputFP, "OSS: Outputting resource table:\n");
+   fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
+   fprintf(logOutputFP, "Resource table:\n");
+   fprintf(logOutputFP, "\t R0\t R1\t R2\t R3\t R4\n");
+
+   int i, j, k;
+
+   for (i = 0; i < 20; i++) {
+      fprintf(logOutputFP, "P%d\t ", i);
+
+      for (j = 0; j < 5; j++) {
+         k = (5 * i) + j;
+
+         fprintf(logOutputFP, "%d\t ", matrix[k]);
+      }
+      fprintf(logOutputFP, "\n");
+   }
+   fprintf(logOutputFP, "\n\n");
 }
 
 

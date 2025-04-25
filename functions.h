@@ -118,6 +118,10 @@ void removeFromProcessTable(pid_t);
 void printProcessTable();
 void printProcessTableToLogfile();
 
+// For matrix and vector operations.
+void printResourceTable(int []);
+void printResourceTableToLogfile(int []);
+
 // For message passing operations.
 void sendMessageToUSER();
 void receiveMessageFromUSER(int);
