@@ -34,6 +34,15 @@ void initializeMessageQueue() {
 }
 
 
+// For the allocation and request matrices, place zeros in every element to initialize them.
+void initializeMatrix(int matrix[]) {
+   int i;
+   for (i = 0; i < 100; i++) {
+      matrix[i] = 0;
+   }
+}
+
+
 // Displays error messages based on 'optarg' arguments.
 void checkForOptargEntryError(int value, char getoptArgument[]) {
    if ((value <= 0 || value > 10)  && (strcmp(getoptArgument, "-n [proc]") == 0)) {
@@ -111,7 +120,7 @@ long long int determineNextLaunchNanoseconds (int intervalMS, long long int oldL
 
     return newLaunchTime;
 }
-
+/*
 // Generates a value between 1 and 5 seconds.
 long long int determineEventWaitTime(int secondsWaitTimeMax, int millisecondsWaitTimeMax, long long int systemClockTime) {
    int secondsToWait = rand() % secondsWaitTimeMax;
@@ -147,7 +156,7 @@ int determineTimeQuantum(int queueLevel) {
 
    return timeQuantum;
 }
-
+*/
 // Attempts to prevent race conditions from occurring during message transfers,
 void slowDownProgram() {
    int i;

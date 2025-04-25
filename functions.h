@@ -94,6 +94,7 @@ extern int currentChildIndex;
 //For initialization.
 void initializeLogfile();
 void initializeMessageQueue();
+void initializeMatrix(int []);
 
 // For user input validation.
 void checkForOptargEntryError(int, char []);
