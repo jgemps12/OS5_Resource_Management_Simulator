@@ -4,7 +4,7 @@ TARGET1	= worker
 TARGET2 = oss
 
 OBJS1   = worker.o
-OBJS2   = oss.o
+OBJS2   = oss.o functions.o
 
 all:	$(TARGET1) $(TARGET2)
 
@@ -17,8 +17,11 @@ $(TARGET2): $(OBJS2)
 worker.o:	worker.c
 	$(CC) $(CFLAGS) -c worker.c
 
-oss.o:		oss.c
+oss.o:		oss.c functions.h
 	$(CC) $(CFLAGS) -c oss.c
+
+functions.o:	functions.c functions.h
+	$(CC) $(CFLAGS) -c functions.c
 
 
 clean:
