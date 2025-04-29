@@ -375,17 +375,38 @@ int main(int argc, char** argv) {
 
 
 	       printf("OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
-	       printf("at time %d:%lld\n",  systemClockSeconds, systemClockNano);
+	       printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 	       fprintf(logOutputFP, "OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
-               fprintf(logOutputFP, "at time %d:%lld\n",  systemClockSeconds, systemClockNano);
+               fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 	       
 	       
 	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix);
-	       updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
-               updateAllocationVector(receiveBuffer.resourceType, allocationVector);
+	       
+	       int index = receiveBuffer.resourceType;
+	       
+	       if (allocationVector[index] > 0) {
+	          printf("OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+	          printf("at time %d:%lld\n.",  systemClockSeconds, systemClockNano);
+	          fprintf(logOutputFP, "OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+                  fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+
+		  updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
+                  updateAllocationVector(receiveBuffer.resourceType, allocationVector);
+               }
+
+	       else {
+	          printf("OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
+		  printf("P%d (PID %ld) added to wait queue at time %d:%lld.\n", currentChild, receiveBuffer.processID, systemClockSeconds, systemClockNano);
+                  fprintf(logOutputFP, "OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
+                  fprintf(logOutputFP, "P%d (PID %ld) added to wait queue ", currentChild, receiveBuffer.processID);
+	          fprintf(logOutputFP, "at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+               }
+
+	      // updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
+              // updateAllocationVector(receiveBuffer.resourceType, allocationVector);
 
 	       int j;
-	       printf("\n\nresourceVector: ");
+	       printf("resourceVector: ");
 	       for (j = 0; j < 5; j++) {
 	          printf("%d ", resourceVector[j]);	
                }
@@ -393,8 +414,8 @@ int main(int argc, char** argv) {
                for (j = 0; j < 5; j++) {
                   printf("%d ", allocationVector[j]);
                }
-               printf("\n");
-	       printProcessTable();
+               printf("\n\n\n");
+	  //     printProcessTable();
 
 	   
 	   
@@ -414,11 +435,26 @@ int main(int argc, char** argv) {
 	    // If the user process sends back a negative number for a time quantum, end child process.
             if (receiveBuffer.selection == TERMINATE_PROGRAM && childrenActive > 0) {
                pid_t pid;
+	       int i;
+	       int j = 5 * currentChild;
 
-               removeFromProcessTable(sendBuffer.processID);
+               printf("---OSS: Process P%d (PID %ld) terminated---\n", currentChild, receiveBuffer.processID);
+               printf("\tResources released: ");
+	       fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) terminated.---\n", currentChild, receiveBuffer.processID);
+               fprintf(logOutputFP, "\tResources released: ");
 
-               printf("---OSS: Process P%d (PID %ld) terminated---\n\n", currentChild, receiveBuffer.processID);
-               fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) terminated.---\n\n", currentChild, receiveBuffer.processID);
+	       
+	       for (i = 0; i < 5; i++) {
+		  if (allocationMatrix[j] > 0) {
+	             printf("P%d: %d    ", i, allocationMatrix[j++]);
+		     fprintf(logOutputFP, "P%d: %d    ", i, allocationMatrix[j]);
+                  }
+	       }
+	       printf("\n");
+	       fprintf(logOutputFP, "\n");
+
+	       
+               removeFromProcessTable(sendBuffer.processID); 
 
                receiveBuffer.selection = REQUEST;
 
