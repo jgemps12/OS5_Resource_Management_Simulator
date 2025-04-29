@@ -36,11 +36,19 @@ struct PCB {
 extern struct PCB processTable[20];
 
 
-// For message queue operations.
+// Enumerates options that the child should do.
+enum ResourceTask {
+   REQUEST,
+   RELEASE,
+   TERMINATE_PROGRAM
+};
+
+
+// Holds message queue information.
 typedef struct messageBuffer {
-   long int messageType;
-   char stringData[100];
-   long int quantumData;
+   long int processID;
+   int resourceType;
+   ResourceTask selection;
 } messageBuffer;
 
 
@@ -119,6 +127,9 @@ void printProcessTable();
 void printProcessTableToLogfile();
 
 // For matrix and vector operations.
+void updateRequestMatrix(int, int, int *);
+void updateAllocationMatrix(int, int, int *);
+void updateAllocationVector(int, int *);
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
 

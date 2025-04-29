@@ -1,6 +1,6 @@
 #include "functions.h"
 #include <stdio.h>
-
+#include <errno.h>
 
 
 // Create a logfile for process output.
@@ -287,29 +287,33 @@ void printProcessTable() {
 
    int i, j;
 
-  
+
    for (i = 0; i < 20; i++) {
       // Prints first 3 columns (Entry, Occupied, PID).
-      printf("%d\t %d\t\t %d\t\t", i, processTable[i].occupied, processTable[i].processID);
+      printf("%d\t %d\t\t %d\t", i, processTable[i].occupied, processTable[i].processID);
+      if (processTable[i].processID == 0) {
+         printf("\t");
+      }
 
       // Prints columns 4 and 5 (StartS, StartN).
       printf(" %d\t %ld\t", processTable[i].startSeconds, processTable[i].startNanoseconds);
       if (processTable[i].startNanoseconds < 1000000) {
          printf("\t");
       }
-  
-      // Prints column 6 (Allocated).   
+
+      // Prints column 6 (Allocated).
       for (j = 0; j < 5; j++) {
          printf(" %d", processTable[i].allocated[j]);
       }
       printf("\t");
-      
+
       // Prints column 7 (Request).
       for (j = 0; j < 5; j++) {
          printf(" %d", processTable[i].request[j]);
       }
       printf("\t");
-      
+
+
       // Prints column 8 (Blocked--the final column).
       printf(" %d\n", processTable[i].blocked);
    }
@@ -318,6 +322,8 @@ void printProcessTable() {
 
    printProcessTableToLogfile();
 }
+
+
 void printProcessTableToLogfile() {
    fprintf(logOutputFP, "OSS: Outputting process table:\n");
    fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
@@ -360,6 +366,27 @@ void printProcessTableToLogfile() {
    fprintf(logOutputFP, "\n\n");
 }
 
+
+
+
+// Request matrix represents that a child process is requesting a specific resource type.
+void updateRequestMatrix(int row, int column, int *matrix) {
+   int location = (5 * row) + column;
+
+   matrix[location] = 1;
+   processTable[row].request[column] = 1;
+}
+
+void updateAllocationMatrix(int row, int column, int *matrix) {
+   int location = (5 * row) + column;
+
+   matrix[location]++;
+   processTable[row].allocated[column]++;
+}
+
+void updateAllocationVector(int element, int *allocationVector) {
+   allocationVector[element]--;
+}
 
 void printResourceTable(int matrix[]) {
    printf("OSS: Outputting resource table:\n");
@@ -406,8 +433,10 @@ void printResourceTableToLogfile(int matrix[]) {
 }
 
 
+// Perform msgsnd() operations.
 void sendMessageToUSER() {
    if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), 0) == -1) {
+      
       printf("ERROR in oss.c: Problem with msgsnd() function.\n");
       printf("Cannot send message to user.c.\n\n");
 
@@ -415,13 +444,17 @@ void sendMessageToUSER() {
    }
 }
 
-
+// Perform nonblocking msgrcv() operations.
 void receiveMessageFromUSER(int i) {
-   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), processTable[i].processID, 0) == -1) {
-      printf("ERROR in oss.c: Problem with msgrcv() function.\n");
-      printf("Cannot receive message from user.c.\n\n");
-
-      periodicallyTerminateProgram(-1);
+   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), 0, IPC_NOWAIT) == -1) {
+      if (errno == ENOMSG) {
+         // Keep running oss.c
+      }
+      else {
+         printf("ERROR in oss.c: Problem with msgrcv() function.\n");
+         
+         periodicallyTerminateProgram(-1);
+      }
    }
 }
 
