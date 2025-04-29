@@ -180,6 +180,7 @@ int main(int argc, char** argv) {
    bool processesFinished = false;                                  // Determines whether the program should end.
    int childrenActive = 0;                                          // # of children running simultaneously (not to be confused with 'proc').
    int totalChildrenLaunched = 0;                                   // # of children launched so far (not to be confused with 'simul').  
+   int currentChild = 0;
    int nextChild = 0;
    int blocked = 0;
    
@@ -218,7 +219,7 @@ int main(int argc, char** argv) {
    int resourceVector[5] = {10, 10, 10, 10, 10};
 
    // # of resources available to allocate for each resource type.
-   int allocationVector[5] = {0, 0, 0, 0, 0};
+   int allocationVector[5] = {10, 10, 10, 10, 10};
  
 
    while (processesFinished == false) {
@@ -229,14 +230,14 @@ int main(int argc, char** argv) {
       //printf("childrenActive: %d\t simul: %d\t totalChildrenLaunched: %d\t proc: %d\n", childrenActive, simul, totalChildrenLaunched, proc);
       // If children are still available to launch simultaneously.
       if (childrenActive < simul && totalChildrenLaunched < proc) {
-        
-// 	  printf("BEFORE while (1)\n");
+         // printf("BEFORE while (1)\n");
     
 	  pid_t processID;
            
 
          // Keeps incrementing system clock until a process is ready to launch.
          while (1) {
+//           printf("After WHILE...\n");
            gettimeofday(&realCurrentTime, NULL);        
 	  
 	   // Determine when program should stop launching processes.
@@ -315,53 +316,44 @@ int main(int argc, char** argv) {
                printf("Cannot add PID %d\n", processID);
             }
 
-	    printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
-            fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
-         }
+	    printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);   
+	    fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
+        
+
+	    // If for-loop below already ran, reinitialize to prevent segmentation faults. 
+	    //nextChild = 0;
+            //receiveBuffer.processID = 0;
+	   // receiveBuffer.resourceType = 0;
+	    printf("receiveBuffer.resourceType: %d\n", receiveBuffer.resourceType);
+	    printf("totalChildrenActive: %d\n", totalChildrenLaunched);
+	    printProcessTable();
+	 }
       }
      
 
       // For-loop acts as a Round-Robin scheduling mechanism.
-      for (nextChild = 0; nextChild < totalChildrenLaunched; nextChild++) {  
-
-
+      for (nextChild = 0; nextChild < childrenActive; nextChild++) {  
+      	 processTable[currentChild].request[receiveBuffer.resourceType] = 0;
+       
 	 // Print process table every half second of simulated system time. 
 	 if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) {
    	    printProcessTable();
 	    printResourceTable(allocationMatrix);
          }   
-         
+       
 	 if (processTable[nextChild].occupied == 1 && processTable[nextChild].blocked == 0) {	    
-
-            // A buffer stores information about what will be sent to a child.
-            sendBuffer.messageType = processTable[nextChild].processID;
-	             
-
-	    // 10, 20, or 40 ms time quantum sent to child.
-	    sendBuffer.quantumData = 40 * oneMillionNanoseconds;
-	    snprintf(sendBuffer.stringData, sizeof(sendBuffer.stringData), "Message sent to child %d again. Child is still running.", nextChild);
-
-
-	    // Parent process sends a message to a child process. Output printed to a logfile.
-	    sendMessageToUSER();
-  
-            printf("OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.messageType, systemClockSeconds, systemClockNano);
-            fprintf(logOutputFP, "OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.messageType, systemClockSeconds, systemClockNano);
-            fflush(logOutputFP);
-
 
 	    // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
 	    // Also prevents multiple empty Process Tables from printing towards the program's end.
 	    int i; 
-            for (i = 0; i < 5000000; i++) {
+            for (i = 0; i < 20000000; i++) {
                // Do nothing.
             }  
            
-
             // Another buffer stores info about what the parent receives from a child.
-            receiveBuffer.messageType = processTable[nextChild].processID;
-	    receiveBuffer.quantumData = sendBuffer.quantumData;
-
+            receiveBuffer.processID = processTable[nextChild].processID;
+//            sendBuffer.selection = receiveBuffer.selection;
+//	    sendBuffer.resourceType = receiveBuffer.resourceType;
 
 	    // Parent process receives a message from a child process. Output printed to a logfile.
 	    receiveMessageFromUSER(nextChild);
@@ -369,68 +361,109 @@ int main(int argc, char** argv) {
 
 	    // Increment clock based on a child's scheduled time.
 	    incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
+	          
+	    currentChild = nextChild - 1;
+	    if (nextChild == 0) {
+	       currentChild = childrenActive - 1;
+	    }
+	  
+	    printf("currentChild: %d\t nextChild: %d\t childrenActive: %d\n", currentChild, nextChild, childrenActive);	    
+	    printf("receiveBuffer.processID: %ld\n", receiveBuffer.processID);
+	    // Prints resource type that a process has requested.
+	    if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && currentChild >= 0) {
+//	       currentChild = findIndexInProcessTable(receiveBuffer.processID);
+
+
+	       printf("OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+	       printf("at time %d:%lld\n",  systemClockSeconds, systemClockNano);
+	       fprintf(logOutputFP, "OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+               fprintf(logOutputFP, "at time %d:%lld\n",  systemClockSeconds, systemClockNano);
 	       
 	       
-	    // Prints duration of time that a process was scheduled.
-	    printf("OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", sendBuffer.messageType, receiveBuffer.quantumData);
-	    fprintf(logOutputFP, "OSS: Receiving that process with PID %ld ran for %ld nanoseconds\n", receiveBuffer.messageType, receiveBuffer.quantumData);
-  
+	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix);
+	       updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
+               updateAllocationVector(receiveBuffer.resourceType, allocationVector);
+
+	       int j;
+	       printf("\n\nresourceVector: ");
+	       for (j = 0; j < 5; j++) {
+	          printf("%d ", resourceVector[j]);	
+               }
+	       printf("\nallocationVector: ");
+               for (j = 0; j < 5; j++) {
+                  printf("%d ", allocationVector[j]);
+               }
+               printf("\n");
+	       printProcessTable();
+
 	   
+	   
+	    }
+	       /*
             // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
             if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData > 0) {
-               printf("**OSS: Did not use its entire time quantum**\n");
-               fprintf(logOutputFP, "**OSS: Did not use its entire time quantum**\n");
-                  
-               printf("OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
-               fprintf(logOutputFP, "OSS: Putting process with PID %ld into blocked queue.\n", receiveBuffer.messageType);
-
-
+               
 	       processTable[nextChild].blocked = 1;
                printProcessTable();
 
 
 	       continue;
 	    }
-
+*/
 
 	    // If the user process sends back a negative number for a time quantum, end child process.
-            if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData < 0) {
+            if (receiveBuffer.selection == TERMINATE_PROGRAM && childrenActive > 0) {
                pid_t pid;
 
-               removeFromProcessTable(sendBuffer.messageType);
+               removeFromProcessTable(sendBuffer.processID);
 
-               printf("---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
-               fprintf(logOutputFP, "---OSS: User #%d PID %ld is planning to terminate.---\n\n", nextChild, sendBuffer.messageType);
+               printf("---OSS: Process P%d (PID %ld) terminated---\n\n", currentChild, receiveBuffer.processID);
+               fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) terminated.---\n\n", currentChild, receiveBuffer.processID);
 
+               receiveBuffer.selection = REQUEST;
 
-             	   
-               continue;
+               childrenActive--;	       
+               
+
+	       if (totalChildrenLaunched != proc) {
+	          continue;
+	       }
+	       else {
+                  processesFinished = true;
+
+	          break;
+	       }
             }
-	 }
+
  
+	    //if (totalChildrenLaunched != proc && childrenActive > 0) {
+	       // A buffer stores information about what will be sent to a child.
+               sendBuffer.processID = processTable[nextChild].processID;
+               sendBuffer.selection = receiveBuffer.selection;
+               sendBuffer.resourceType = receiveBuffer.resourceType;
+
+
+               // Parent process sends a message to a child process. Output printed to a logfile.
+               sendMessageToUSER();
+
+              // printf("OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.processID, systemClockSeconds, systemClockNano);
+               //fprintf(logOutputFP, "OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.processID, systemClockSeconds, systemClockNano);
+               fflush(logOutputFP);
+         //   }
+
+	 } 
 	    
-       
-         // If no more children are running and the maximum # of total children have been launched, end loop/program.
-         if (childrenActive == 0 && totalChildrenLaunched == proc) {
-            processesFinished = true;
-
-            break;
-         }
-
-
+      
 	 // If the limit of simultaneous children has been reached, but more still need to be launched, wait for them to terminate.
          if (childrenActive == simul && totalChildrenLaunched < proc) {
             int status;
             pid_t pid;
-          
+         
+	   
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-               printf("pid: %d\n", pid);
-	       printf("waitpid()\n");
    	       removeFromProcessTable(pid);
-	       childrenActive--;  
-	    }
-
-	    break;
+	       //childrenActive--;  
+	    } 
 	 }
 
 
@@ -441,13 +474,29 @@ int main(int argc, char** argv) {
 
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                removeFromProcessTable(pid);
-	       childrenActive--;
+	       //childrenActive--;
             }
          }
 
-         // Break if it is time to terminate the program.
-         if (childrenActive == 0 && totalChildrenLaunched == proc) {  
+	 // If no more children are running and the maximum # of total children have been launched, end loop/program.
+	 if (childrenActive == 0 && totalChildrenLaunched == proc) {
+            int status;
+	    pid_t pid;
+
+            while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+               removeFromProcessTable(pid);
+               //childrenActive--;
+            }
+
+	    
+            processesFinished = true;
+
             break;
+         }
+
+	 // Keep restarting the loop until it needs to work with a new process.
+	 if ((nextChild == childrenActive - 1) && systemNanoOnly < nextLaunchTimeNano) {
+            nextChild = -1;
 	 }
       } 
    }
