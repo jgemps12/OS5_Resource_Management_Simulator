@@ -96,6 +96,14 @@ long int systemClockIncrement = oneMillionNanoseconds;
 // For determining the child process order in which messages are to be sent.
 int currentChildIndex = 0;
 
+// Counter and average variables that keep track of statistics. These statistics will be printed at end of program.
+int requestsGrantedImmediately = 0;
+int requestsGrantedAfterWaiting = 0;
+int processesTerminatedByDeadlock = 0;
+int processesTerminatedGracefully = 0;
+double deadlockDetectionTermPercentage = 0.0;
+int deadlockDetectionAlgCount = 0;
+
 
 
 int main(int argc, char** argv) {
@@ -220,9 +228,10 @@ int main(int argc, char** argv) {
 
    // # of resources available to allocate for each resource type.
    int allocationVector[5] = {10, 10, 10, 10, 10};
- 
+
 
    while (processesFinished == false) {
+     
 
      // printf("while (processesFinished == false\n");
  
@@ -326,7 +335,7 @@ int main(int argc, char** argv) {
 	   // receiveBuffer.resourceType = 0;
 	    printf("receiveBuffer.resourceType: %d\n", receiveBuffer.resourceType);
 	    printf("totalChildrenActive: %d\n", totalChildrenLaunched);
-	    printProcessTable();
+	    //printProcessTable();
 	 }
       }
      
@@ -346,14 +355,12 @@ int main(int argc, char** argv) {
 	    // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
 	    // Also prevents multiple empty Process Tables from printing towards the program's end.
 	    int i; 
-            for (i = 0; i < 20000000; i++) {
+            for (i = 0; i < 40000000; i++) {
                // Do nothing.
             }  
            
             // Another buffer stores info about what the parent receives from a child.
             receiveBuffer.processID = processTable[nextChild].processID;
-//            sendBuffer.selection = receiveBuffer.selection;
-//	    sendBuffer.resourceType = receiveBuffer.resourceType;
 
 	    // Parent process receives a message from a child process. Output printed to a logfile.
 	    receiveMessageFromUSER(nextChild);
@@ -369,6 +376,8 @@ int main(int argc, char** argv) {
 	  
 	    printf("currentChild: %d\t nextChild: %d\t childrenActive: %d\n", currentChild, nextChild, childrenActive);	    
 	    printf("receiveBuffer.processID: %ld\n", receiveBuffer.processID);
+
+
 	    // Prints resource type that a process has requested.
 	    if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && currentChild >= 0) {
 //	       currentChild = findIndexInProcessTable(receiveBuffer.processID);
@@ -380,26 +389,35 @@ int main(int argc, char** argv) {
                fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 	       
 	       
-	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix);
+	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix, REQUEST);
 	       
 	       int index = receiveBuffer.resourceType;
-	       
+
+
+               // If the allocation vector shows that space is available for a resource type, grant it to a child.	       
 	       if (allocationVector[index] > 0) {
 	          printf("OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
 	          printf("at time %d:%lld\n.",  systemClockSeconds, systemClockNano);
 	          fprintf(logOutputFP, "OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
                   fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 
-		  updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
-                  updateAllocationVector(receiveBuffer.resourceType, allocationVector);
+		  updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, REQUEST);
+                  updateAllocationVector(receiveBuffer.resourceType, allocationVector, REQUEST);
+
+		  requestsGrantedImmediately++;
+		  printf("REQUESTS: %d\n\n", requestsGrantedImmediately);
                }
 
+	       // If space is unavailable for a resource type according to allocation vector.
+	       // Reject resource type, send child to wait queue, and make it sleep until it is finally available.
 	       else {
 	          printf("OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
 		  printf("P%d (PID %ld) added to wait queue at time %d:%lld.\n", currentChild, receiveBuffer.processID, systemClockSeconds, systemClockNano);
                   fprintf(logOutputFP, "OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
                   fprintf(logOutputFP, "P%d (PID %ld) added to wait queue ", currentChild, receiveBuffer.processID);
 	          fprintf(logOutputFP, "at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+
+
                }
 
 	      // updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix);
@@ -433,11 +451,13 @@ int main(int argc, char** argv) {
 */
 
 	    // If the user process sends back a negative number for a time quantum, end child process.
-            if (receiveBuffer.selection == TERMINATE_PROGRAM && childrenActive > 0) {
-               pid_t pid;
+            if (receiveBuffer.selection == TERMINATE_PROCESS) {
 	       int i;
 	       int j = 5 * currentChild;
+               int status;
 
+ 	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix, TERMINATE_PROCESS);
+	       
                printf("---OSS: Process P%d (PID %ld) terminated---\n", currentChild, receiveBuffer.processID);
                printf("\tResources released: ");
 	       fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) terminated.---\n", currentChild, receiveBuffer.processID);
@@ -446,20 +466,41 @@ int main(int argc, char** argv) {
 	       
 	       for (i = 0; i < 5; i++) {
 		  if (allocationMatrix[j] > 0) {
-	             printf("P%d: %d    ", i, allocationMatrix[j++]);
+	             printf("P%d: %d    ", i, allocationMatrix[j]);
 		     fprintf(logOutputFP, "P%d: %d    ", i, allocationMatrix[j]);
                   }
+		  j++;
 	       }
 	       printf("\n");
 	       fprintf(logOutputFP, "\n");
+               
+	       //updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
+               updateAllocationVector(currentChild, allocationMatrix, allocationVector, TERMINATE_PROCESS);
+               updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
 
+
+	       printProcessTable();
+	      
+
+               sleep(1.5);
 	       
+               while ((receiveBuffer.processID = waitpid(-1, &status, WNOHANG)) > 0) {
+                  removeFromProcessTable(receiveBuffer.processID);
+                  processesTerminatedGracefully++;
+                  //printf("processesTerminatedGracefully: %d\n", processesTerminatedGracefully);
+               //childrenActive--;
+               }
+           
                removeFromProcessTable(sendBuffer.processID); 
 
                receiveBuffer.selection = REQUEST;
-
-               childrenActive--;	       
-               
+                
+	
+               //processesTerminatedGracefully = totalChildrenLaunched;
+    
+	       if (childrenActive > 0) {
+	          childrenActive--;
+	       }
 
 	       if (totalChildrenLaunched != proc) {
 	          continue;
@@ -495,11 +536,13 @@ int main(int argc, char** argv) {
             int status;
             pid_t pid;
          
-	   
+	  /* 
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
    	       removeFromProcessTable(pid);
+//	       processesTerminatedGracefully++;
+
 	       //childrenActive--;  
-	    } 
+	    } */
 	 }
 
 
@@ -507,23 +550,27 @@ int main(int argc, char** argv) {
          if (childrenActive > 0 && totalChildrenLaunched == proc) {
             int status;
             pid_t pid;
-
+/*
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                removeFromProcessTable(pid);
+	       //processesTerminatedGracefully++;
+
 	       //childrenActive--;
-            }
+            }*/
          }
 
 	 // If no more children are running and the maximum # of total children have been launched, end loop/program.
 	 if (childrenActive == 0 && totalChildrenLaunched == proc) {
             int status;
 	    pid_t pid;
-
+/*
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                removeFromProcessTable(pid);
+	       //processesTerminatedGracefully++;
+
                //childrenActive--;
             }
-
+*/
 	    
             processesFinished = true;
 
@@ -536,10 +583,14 @@ int main(int argc, char** argv) {
 	 }
       } 
    }
+
+   processesTerminatedGracefully -= processesTerminatedByDeadlock;
    //printAllFeedbackQueues(queue);
+
    printProcessTable();
    printResourceTable(allocationMatrix);
-   
+   printStatistics();
+
    fclose(logOutputFP);
    periodicallyTerminateProgram(EXIT_SUCCESS);
 
