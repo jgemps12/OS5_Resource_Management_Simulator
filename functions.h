@@ -141,6 +141,7 @@ long long int incrementClock(int *, long long int *, int);
 long long int convertSystemTimeToNanosecondsOnly (int *, long long int *);
 long long int determineNextLaunchNanoseconds(int, long long int);
 long long int determineEventWaitTime(int, int, long long int);
+long int determineBoundB(long int);
 int determineTimeQuantum(int);
 void slowDownProgram();
 
@@ -161,6 +162,7 @@ void updateAllocationVector(int, int *, ResourceTask);                      // F
 void updateAllocationVector(int, int *, int *, ResourceTask);               // For TERMINATE_PROCESS.
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
+void printChildTerminationMessage(int *, int, long int);
 
 // For message passing operations.
 void sendMessageToUSER();

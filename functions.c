@@ -260,6 +260,15 @@ int determineTimeQuantum(int queueLevel) {
    return timeQuantum;
 }
 */
+
+// OSS grants, denies, or releases resources at a random time between 0 and B nanoseconds.
+long int determineBoundB (long int B) {
+
+   long int nextDecisionTime = rand() % B;
+
+   printf("nextDecisionTime: %ld", nextDecisionTime);
+   return nextDecisionTime;
+}
 // Attempts to prevent race conditions from occurring during message transfers,
 void slowDownProgram() {
    int i;
@@ -482,17 +491,14 @@ void updateRequestMatrix(int row, int column, int *matrix, ResourceTask option) 
       matrix[location] = 1;
       processTable[row].request[column] = 1;
    }
-   else if (option == RELEASE) {
-   
-   
-   }
-   else if (option == TERMINATE_PROCESS) {
+
+   else if (option == RELEASE || option == TERMINATE_PROCESS) {
       int i;
       location = 5 * row;
-      
+
       for (i = 0; i < 5; i++) {
          matrix[location] = 0;
-	 location++;
+         location++;
       }
    }
 }
@@ -506,12 +512,14 @@ void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask optio
       matrix[location]++;
       processTable[row].allocated[column]++;
    }
+
    else if (option == RELEASE) {
-      
+      location = (5 * row) + column;
 
-
-
+      matrix[location]--;
+      processTable[row].allocated[column]--;
    }
+
    else if (option == TERMINATE_PROCESS) {
       int i;
       location = 5 * row;
@@ -520,8 +528,6 @@ void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask optio
          matrix[location] = 0;
          location++;
       }
-
-
    }
 }
 
@@ -530,12 +536,7 @@ void updateAllocationVector(int element, int *allocationVector, ResourceTask opt
       allocationVector[element]--;
    }
    else if (option == RELEASE) {
-
-
-   }
-   else if (option == TERMINATE_PROCESS) {
-
-
+      allocationVector[element]++;  
    }
 }
 
@@ -596,6 +597,47 @@ void printResourceTableToLogfile(int matrix[]) {
    fprintf(logOutputFP, "\n\n");
 }
 
+void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
+   int i;
+   int j = 5 * child;
+   bool isAllocationMatrixRowEmpty = true;
+
+   printf("---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
+   printf("\tResources released: ");
+   fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
+   fprintf(logOutputFP, "\tResources released: ");
+
+
+   // Determine whether to print resource type quantities or 'NONE' for released resources.
+   for (i = 0; i < 5; i++) {
+      if (allocationMatrix[j] > 0) {
+         isAllocationMatrixRowEmpty = false;
+
+         break;
+      }
+      j++;
+   }
+
+   j = 5 * child;
+
+   // If no resources were released before termination.
+   if (isAllocationMatrixRowEmpty == true) {
+      printf("NONE\n");
+      fprintf(logOutputFP, "NONE\n");
+   }
+
+   // If at least one resource type was released before termination.
+   for (i = 0; i < 5; i++) {
+      if (allocationMatrix[j] > 0) {
+         printf("P%d: %d    ", i, allocationMatrix[j]);
+         fprintf(logOutputFP, "P%d: %d    ", i, allocationMatrix[j]);
+      }
+      j++;
+   }
+   printf("\n");
+   fprintf(logOutputFP, "\n");
+
+}
 
 // Perform msgsnd() operations.
 void sendMessageToUSER() {
