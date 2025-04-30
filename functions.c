@@ -34,6 +34,109 @@ void initializeMessageQueue() {
 }
 
 
+void initializeFeedbackQueue(MultiLevelQueue *queue) {
+   queue->front = -1;
+   queue->rear = -1;
+}
+
+
+bool isQueueEmpty(MultiLevelQueue *queue) {
+   bool frontNeverInitialized = (queue->front == -1);
+   bool allElementsDequeued = (queue->front  >  queue->rear);
+
+   if (frontNeverInitialized == true || allElementsDequeued == true) {
+      return true;
+   }
+
+   return false;
+}
+
+
+// Add process to back of queue.
+void enqueue(MultiLevelQueue *queue, pid_t pid) {
+   if (queue->rear >= MAX_SIZE - 1) {
+      printf("ERROR in oss.c: enqueue() function failed. Queue overflow occurred.\n");
+
+      periodicallyTerminateProgram(-1);
+   }
+
+   slowDownProgram();
+
+   if (isQueueEmpty(queue) == true) {
+      queue->front = 0;
+      queue->rear = 0;
+   }
+   else {
+      queue->rear++;
+   }
+
+   queue->processEntries[queue->rear] = pid;
+}
+
+pid_t dequeue(MultiLevelQueue *queue) {
+   if (isQueueEmpty(queue) == true) {
+      printf("ERROR in oss.c: dequeue() function failed. Queue underflow occurred.\n");
+
+
+      periodicallyTerminateProgram(-1);
+   }
+
+   slowDownProgram();
+
+   pid_t processID = queue->processEntries[queue->front];
+
+   queue->front++;
+
+   if (queue->front > queue->rear) {
+      initializeFeedbackQueue(queue);
+   }
+
+
+   return processID;
+}
+
+// Return value at front of queue WITHOUT removing it.
+pid_t peekQueue(MultiLevelQueue *queue) {
+   if (isQueueEmpty(queue) == false) {
+      int front = queue->front;
+      int frontValue = queue->processEntries[front];
+
+      return frontValue;
+   }
+
+   return -1;
+}
+
+void printAllFeedbackQueues(MultiLevelQueue queue[]) {
+   int i;
+   for (i = 0; i < QUEUE_COUNT; i++) {
+      printf("Queue %d: ", i);
+      fprintf(logOutputFP, "Queue %d: ", i);
+
+      printOneQueue(&queue[i]);
+   }
+   printf("\n");
+   fprintf(logOutputFP, "\n");
+}
+void printOneQueue(MultiLevelQueue *queue) {
+   if (isQueueEmpty(queue) == true) {
+      printf("(empty)\n");
+      fprintf(logOutputFP, "(empty)\n");
+
+      return;
+   }
+
+   int i;
+   for (i = queue->front; i <= queue->rear; i++) {
+      printf("%d ", queue->processEntries[i]);
+      fprintf(logOutputFP, "%d ", queue->processEntries[i]);
+   }
+
+   printf("\n");
+   fprintf(logOutputFP, "\n");
+}
+
+
 // For the allocation and request matrices, place zeros in every element to initialize them.
 void initializeMatrix(int matrix[]) {
    int i;
@@ -370,24 +473,85 @@ void printProcessTableToLogfile() {
 
 
 // Request matrix represents that a child process is requesting a specific resource type.
-void updateRequestMatrix(int row, int column, int *matrix) {
-   int location = (5 * row) + column;
+void updateRequestMatrix(int row, int column, int *matrix, ResourceTask option) {
+   int location;
 
-   matrix[location] = 1;
-   processTable[row].request[column] = 1;
+   if (option == REQUEST) {
+      location = (5 * row) + column;
+
+      matrix[location] = 1;
+      processTable[row].request[column] = 1;
+   }
+   else if (option == RELEASE) {
+   
+   
+   }
+   else if (option == TERMINATE_PROCESS) {
+      int i;
+      location = 5 * row;
+      
+      for (i = 0; i < 5; i++) {
+         matrix[location] = 0;
+	 location++;
+      }
+   }
 }
 
-void updateAllocationMatrix(int row, int column, int *matrix) {
-   int location = (5 * row) + column;
+void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask option) {
+   int location;
 
-   matrix[location]++;
-   processTable[row].allocated[column]++;
+   if (option == REQUEST) {
+      location = (5 * row) + column;
+
+      matrix[location]++;
+      processTable[row].allocated[column]++;
+   }
+   else if (option == RELEASE) {
+      
+
+
+
+   }
+   else if (option == TERMINATE_PROCESS) {
+      int i;
+      location = 5 * row;
+
+      for (i = 0; i < 5; i++) {
+         matrix[location] = 0;
+         location++;
+      }
+
+
+   }
 }
 
-void updateAllocationVector(int element, int *allocationVector) {
-   allocationVector[element]--;
+void updateAllocationVector(int element, int *allocationVector, ResourceTask option) {
+   if (option == REQUEST) {	
+      allocationVector[element]--;
+   }
+   else if (option == RELEASE) {
+
+
+   }
+   else if (option == TERMINATE_PROCESS) {
+
+
+   }
 }
 
+void updateAllocationVector(int row, int *allocationMatrix, int *allocationVector, ResourceTask option) {
+   int i; 
+   int location; 
+
+   if (option == TERMINATE_PROCESS) {
+      location = 5 * row;
+
+      for (i = 0; i < 5; i++) {
+         allocationVector[i] += allocationMatrix[location];
+	 location++;
+      }
+   }
+}
 void printResourceTable(int matrix[]) {
    printf("OSS: Outputting resource table:\n");
    printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
@@ -487,6 +651,19 @@ void printHelpMessage() {
 }
 
 
+void printStatistics () {
+   deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;
+
+   printf("********************PROGRAM SUMMARY********************\n\n");
+   printf("Requests granted immediately:\t\t %d\n", requestsGrantedImmediately);
+   printf("Requests granted after waiting:\t\t %d\n", requestsGrantedAfterWaiting);
+   printf("Deadlock detection terminations:\t %d\n", processesTerminatedByDeadlock); 
+   printf("Graceful terminations:\t\t\t %d\n", processesTerminatedGracefully);
+   printf("Deadlock termination percentage:\t %.2f%%\n", deadlockDetectionTermPercentage);
+   printf("# of deadlock detection operations:\t %d\n\n", deadlockDetectionAlgCount);
+   printf("*******************************************************\n\n");
+}
+
 // Clean memory segments and message queue.
 void detachAndClearSharedMemory () {
    shmdt(secondsShared);
@@ -509,7 +686,7 @@ void removeMessageQueue() {
 
 // Gracefully terminates program after a function error or use of CTRL + C.
 void periodicallyTerminateProgram(int signal) {
-   printf("Now terminating all child processes...\n\n");
+   printf("\n\n\nNow terminating all child processes...\n");
 
    int i;
    for (i = 0; i < 20; i++) {
@@ -523,19 +700,19 @@ void periodicallyTerminateProgram(int signal) {
          }
       }
    }
-   printf("\nChild process termination complete.\n");
+   printf("Child process termination complete.\n\n");
 
    
    // Shared memory operations.
    printf("Now freeing shared memory...\n");
    detachAndClearSharedMemory();
-   printf("\nShared memory detachment and deletion complete.\n");
+   printf("Shared memory detachment and deletion complete.\n\n");
    
 
    // Queue removal operations.
    printf("Now deleting the message queue...\n");
    removeMessageQueue();
-   printf("\nMessage queue removal and deletion complete.\n");
+   printf("Message queue removal and deletion complete.\n\n");
  
 
    // Graceful termination.

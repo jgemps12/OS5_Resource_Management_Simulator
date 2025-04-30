@@ -40,9 +40,21 @@ extern struct PCB processTable[20];
 enum ResourceTask {
    REQUEST,
    RELEASE,
-   TERMINATE_PROGRAM
+   TERMINATE_PROCESS
 };
 
+// For placing children into wait queues or termination queues.
+typedef struct MultiLevelQueue {
+   int processEntries[MAX_SIZE];
+   int front;
+   int rear;
+} MultiLevelQueue;
+
+// Enumerates the two queue levels for P5.
+enum QueueLevels {
+   WAIT,
+   TERMINATION
+};
 
 // Holds message queue information.
 typedef struct messageBuffer {
@@ -94,6 +106,13 @@ extern long int hundredMS;
 // For feedback queue operations.
 extern int currentChildIndex;
 
+// For program statistics.
+extern int requestsGrantedImmediately;
+extern int requestsGrantedAfterWaiting;
+extern int processesTerminatedByDeadlock;
+extern int processesTerminatedGracefully;
+extern double deadlockDetectionTermPercentage;
+extern int deadlockDetectionAlgCount;
 
 
 
@@ -103,6 +122,15 @@ extern int currentChildIndex;
 void initializeLogfile();
 void initializeMessageQueue();
 void initializeMatrix(int []);
+void initializeFeedbackQueue(MultiLevelQueue *);
+
+// For feedback queue.
+bool isQueueEmpty(MultiLevelQueue *);
+void enqueue(MultiLevelQueue *, pid_t);
+pid_t dequeue(MultiLevelQueue *);
+pid_t peekQueue(MultiLevelQueue *);
+void printAllFeedbackQueues(MultiLevelQueue *);
+void printOneQueue(MultiLevelQueue *);
 
 // For user input validation.
 void checkForOptargEntryError(int, char []);
@@ -127,9 +155,10 @@ void printProcessTable();
 void printProcessTableToLogfile();
 
 // For matrix and vector operations.
-void updateRequestMatrix(int, int, int *);
-void updateAllocationMatrix(int, int, int *);
-void updateAllocationVector(int, int *);
+void updateRequestMatrix(int, int, int *, ResourceTask);
+void updateAllocationMatrix(int, int, int *, ResourceTask);
+void updateAllocationVector(int, int *, ResourceTask);                      // For REQUEST and RELEASE.
+void updateAllocationVector(int, int *, int *, ResourceTask);               // For TERMINATE_PROCESS.
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
 
@@ -141,6 +170,7 @@ void receiveMessageFromUSER(int);
 void printHelpMessage();
 
 // For terminating the program.
+void printStatistics();
 void detachAndClearSharedMemory();
 void removeMessageQueue();
 void periodicallyTerminateProgram(int);
