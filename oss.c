@@ -383,19 +383,19 @@ int main(int argc, char** argv) {
 //	       currentChild = findIndexInProcessTable(receiveBuffer.processID);
 
 
-	       printf("OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+	       printf("OSS: Detected Process P%d (PID %ld) REQUESTING R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
 	       printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-	       fprintf(logOutputFP, "OSS: Detected Process P%d (PID %ld) requesting R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+	       fprintf(logOutputFP, "OSS: Detected Process P%d (PID %ld) REQUESTING R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
                fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 	       
 	       
 	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix, REQUEST);
 	       
-	       int index = receiveBuffer.resourceType;
-
+	       int vectorIndex = receiveBuffer.resourceType;
+               //int matrixIndex = 5 * currentChild + receiveBuffer.resourceType;
 
                // If the allocation vector shows that space is available for a resource type, grant it to a child.	       
-	       if (allocationVector[index] > 0) {
+	       if (allocationVector[vectorIndex] > 0) {
 	          printf("OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
 	          printf("at time %d:%lld\n.",  systemClockSeconds, systemClockNano);
 	          fprintf(logOutputFP, "OSS: Granting P%d (PID %ld)'s request for R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
@@ -403,9 +403,7 @@ int main(int argc, char** argv) {
 
 		  updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, REQUEST);
                   updateAllocationVector(receiveBuffer.resourceType, allocationVector, REQUEST);
-
 		  requestsGrantedImmediately++;
-		  printf("REQUESTS: %d\n\n", requestsGrantedImmediately);
                }
 
 	       // If space is unavailable for a resource type according to allocation vector.
@@ -438,17 +436,39 @@ int main(int argc, char** argv) {
 	   
 	   
 	    }
-	       /*
+
+	    int matrixIndex = 5 * currentChild + receiveBuffer.resourceType;
+
+	       
             // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
-            if (sendBuffer.quantumData != receiveBuffer.quantumData && receiveBuffer.quantumData > 0) {
+            if (receiveBuffer.selection == RELEASE && allocationMatrix[matrixIndex] > 0) {
                
-	       processTable[nextChild].blocked = 1;
-               printProcessTable();
+	       printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+               printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+               fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", currentChild, receiveBuffer.processID, receiveBuffer.resourceType);
+               fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 
+               printResourceTable(allocationMatrix);
+	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix, RELEASE);
+               updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, RELEASE);
+	       updateAllocationVector(receiveBuffer.resourceType, allocationVector, RELEASE);
+	   
+	      
+	       int j;
+               printf("resourceVector (RELEASE): ");
+               for (j = 0; j < 5; j++) {
+                  printf("%d ", resourceVector[j]);
+               }
+               printf("\nallocationVector (RELEASE): ");
+               for (j = 0; j < 5; j++) {
+                  printf("%d ", allocationVector[j]);
+               }
+	       printResourceTable(allocationMatrix);
+	     //  sleep(2);
+               printf("\n\n\n");
 
-	       continue;
 	    }
-*/
+
 
 	    // If the user process sends back a negative number for a time quantum, end child process.
             if (receiveBuffer.selection == TERMINATE_PROCESS) {
@@ -457,34 +477,15 @@ int main(int argc, char** argv) {
                int status;
 
  	       updateRequestMatrix(currentChild, receiveBuffer.resourceType, requestMatrix, TERMINATE_PROCESS);
-	       
-               printf("---OSS: Process P%d (PID %ld) terminated---\n", currentChild, receiveBuffer.processID);
-               printf("\tResources released: ");
-	       fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) terminated.---\n", currentChild, receiveBuffer.processID);
-               fprintf(logOutputFP, "\tResources released: ");
-
-	       
-	       for (i = 0; i < 5; i++) {
-		  if (allocationMatrix[j] > 0) {
-	             printf("P%d: %d    ", i, allocationMatrix[j]);
-		     fprintf(logOutputFP, "P%d: %d    ", i, allocationMatrix[j]);
-                  }
-		  j++;
-	       }
-	       printf("\n");
-	       fprintf(logOutputFP, "\n");
-               
-	       //updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
-               updateAllocationVector(currentChild, allocationMatrix, allocationVector, TERMINATE_PROCESS);
+	       printChildTerminationMessage(allocationMatrix, currentChild, receiveBuffer.processID);
+	       updateAllocationVector(currentChild, allocationMatrix, allocationVector, TERMINATE_PROCESS);
                updateAllocationMatrix(currentChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
-
-
 	       printProcessTable();
 	      
 
                sleep(1.5);
 	       
-               while ((receiveBuffer.processID = waitpid(-1, &status, WNOHANG)) > 0) {
+               while ((receiveBuffer.processID = waitpid(receiveBuffer.processID, &status, WNOHANG)) > 0) {
                   removeFromProcessTable(receiveBuffer.processID);
                   processesTerminatedGracefully++;
                   //printf("processesTerminatedGracefully: %d\n", processesTerminatedGracefully);
@@ -505,28 +506,22 @@ int main(int argc, char** argv) {
 	       if (totalChildrenLaunched != proc) {
 	          continue;
 	       }
-	       else {
+	       if (processesTerminatedGracefully == proc) {
                   processesFinished = true;
 
 	          break;
 	       }
             }
-
  
-	    //if (totalChildrenLaunched != proc && childrenActive > 0) {
-	       // A buffer stores information about what will be sent to a child.
-               sendBuffer.processID = processTable[nextChild].processID;
-               sendBuffer.selection = receiveBuffer.selection;
-               sendBuffer.resourceType = receiveBuffer.resourceType;
+	    sendBuffer.processID = processTable[nextChild].processID;
+            sendBuffer.selection = receiveBuffer.selection;
+            sendBuffer.resourceType = receiveBuffer.resourceType;
 
-
-               // Parent process sends a message to a child process. Output printed to a logfile.
-               sendMessageToUSER();
-
-              // printf("OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.processID, systemClockSeconds, systemClockNano);
-               //fprintf(logOutputFP, "OSS: Sending message to Worker #%d PID %ld at time %d:%lld\n", nextChild, sendBuffer.processID, systemClockSeconds, systemClockNano);
-               fflush(logOutputFP);
-         //   }
+            // Parent process sends a message to a child process. Output printed to a logfile.
+            sendMessageToUSER();
+           
+            fflush(logOutputFP);
+         
 
 	 } 
 	    

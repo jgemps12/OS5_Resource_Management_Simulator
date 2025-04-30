@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <errno.h>
 #include <time.h>
 
 
@@ -39,11 +40,19 @@
 #define PERMISSIONS 0644
 
 
+// Enumerates options that the child should do.
+enum ResourceTask {
+   REQUEST,
+   RELEASE,
+   TERMINATE_PROGRAM
+};
+
+
 // Holds message queue information.
 typedef struct messageBuffer {
-   long int messageType;
-   char stringData[100];
-   long int quantumData;
+   long int processID;
+   int resourceType;
+   ResourceTask selection;
 } messageBuffer;
 
 
@@ -60,7 +69,8 @@ char *logfileFP = NULL;
 
 // Function prototypes.
 void initializeMessageQueue();
-int determineProcessSelection(int);
+ResourceTask determineProcessSelection(int);
+int determineResourceType();
 void sendMessageToOSS();
 void receiveMessageFromOSS();
 void slowDownProgram();
@@ -96,15 +106,17 @@ int main(int argc, char** argv) {
 
    int probabilityValue = 0;
    int processSelection = -1;
-   int timeQuantumFraction = 0;
+  // int timeQuantumFraction = 0;
 
 
+   int resourceType = -1;
    initializeMessageQueue();
 
    
    do {
+      enum ResourceTask processSelection;
       // Receives a message from the parent.
-      receiveMessageFromOSS();
+   //   receiveMessageFromOSS();
 
 
       // Compare # of seconds before and after shared memory is re-read.
@@ -117,54 +129,62 @@ int main(int argc, char** argv) {
 
       // Slow down program to prevent race conditions between Process Table and printf() message times (for oss.c and user.c, respectively).
       int i;
-      for (i = 0; i < 100000000; i++) {
+      for (i = 0; i < 7000000; i++) {
          //  Do nothing.
       }
 
-      probabilityValue = (rand() % 100) + 1;
+      probabilityValue = (rand() % 1000) + 1;
+      resourceType = rand() % 5;
       processSelection = determineProcessSelection(probabilityValue);
   
       
       switch (processSelection) {       
-	 // If child process runs for its ENTIRE time quantum.
-	 case 1:
-            //sendBuffer.messageType = getpid();
-	    sendBuffer.messageType = receiveBuffer.messageType;
-            sendBuffer.quantumData = receiveBuffer.quantumData;
- 
+	 // If child decides to REQUEST a resource.
+	 case REQUEST:
+            sendBuffer.selection = REQUEST;
+            sendBuffer.processID = getpid();
+	   
+
+            sendBuffer.resourceType = resourceType;
+           // printf("resourceType: %d\n", resourceType);
+
             sendMessageToOSS();
 
 	    break;
 	 
 
-	 // If child process runs for PART of its time quantum, but then becomes interrupted and BLOCKED.
-	 case 2:
-	    timeQuantumFraction = (rand() % 99) + 1;
-
-           // sendBuffer.messageType = getpid();
-            sendBuffer.messageType = receiveBuffer.messageType;
-	    sendBuffer.quantumData = (timeQuantumFraction * receiveBuffer.quantumData) / 100;
+	 // If child decides to RELEASE a resource.
+	 case RELEASE:
+	    sendBuffer.selection = RELEASE;
+            sendBuffer.processID = getpid();
+          
+	    sendBuffer.resourceType = resourceType;
 
             sendMessageToOSS();
 
             break;
 
 
-	 // If child process runs for PART of its time quantum, but then becomes TERMINATED.
-	 case 3:
-            timeQuantumFraction = (rand() % 99) + 1;
-
-	    //sendBuffer.messageType = getpid();
-            sendBuffer.messageType = receiveBuffer.messageType;
-	    sendBuffer.quantumData = (-1 * timeQuantumFraction * receiveBuffer.quantumData) / 100;
+	 // If child decides to TERMINATE a program.
+	 case TERMINATE_PROGRAM:
+            sendBuffer.selection = TERMINATE_PROGRAM;
+	    sendBuffer.processID = getpid();
+     
+	    sendBuffer.resourceType = 0;
 
             sendMessageToOSS();
 	    
 	    break;
       }
-      if (processSelection == 3) {
+
+      receiveMessageFromOSS();
+
+      if (processSelection == TERMINATE_PROGRAM) {
          break;
       }
+
+
+      //receiveMessageFromOSS();
    }
    while (1);
   
@@ -199,32 +219,36 @@ void initializeMessageQueue() {
 
 
 // Randomly decides option 1, 2, or 3 based on probability.
-int determineProcessSelection (int probabilityValue) {
-   int selection;                            
+ResourceTask determineProcessSelection (int probabilityValue) {
+   enum ResourceTask selection;                            
 
    // Process runs full time quantum.
-   if (probabilityValue >= 1 && probabilityValue <= 90) {
-      selection = 1;
+   if (probabilityValue >= 1 && probabilityValue <= 800) {
+      selection = REQUEST;
    }
 
    // Process runs part of quantum, but gets blocked.
-   else if (probabilityValue >= 91 && probabilityValue <= 96) {  
-      selection = 2;
+   else if (probabilityValue >= 801 && probabilityValue <= 995) {  
+      selection = RELEASE;
    }
 
    // Process runs part of quantum, but gets terminated.
-   else if (probabilityValue >= 97 && probabilityValue <= 100) {
-      selection = 3;
+   else if (probabilityValue >= 996 && probabilityValue <= 1000) {
+      selection = TERMINATE_PROGRAM;
    }
 
-   
+   //printf("probabilityValue: %d\n", probabilityValue); 
    return selection;
 }
 
 
+// Randomly decides resource types R0, R1, R2, R3, or R4.
+/*int determineResourceType () {
+  */ 
+
 // msgsnd() operations.
 void sendMessageToOSS() {
-   slowDownProgram();
+//   slowDownProgram();
    
    if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), 0) == -1) {
       printf("ERROR in user.c: Problem with msgsnd() function.\n");
@@ -235,15 +259,18 @@ void sendMessageToOSS() {
 }
 
 
-// msgrcv() operations.
+// Nonblocking msgrcv() operations.
 void receiveMessageFromOSS() {
-   slowDownProgram();
-	
    if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), getpid(), 0) == -1) {
-      printf("ERROR in user.c: Problem with msgrcv() function.\n");
-      printf("Cannot receive message from oss.c.\n\n");
+     // if (errno == ENOMSG) {
+  //       slowDownProgram();
+	 // Continue running worker.c
+     // }
+     // else {
+         printf("ERROR in worker.c: Problem with msgrcv() function.\n");
 
-      exit(-1);
+         exit(-1);
+     // }
    }
 }
 
