@@ -191,6 +191,7 @@ int main(int argc, char** argv) {
    int currentChild = 0;
    int nextChild = 0;
    int blocked = 0;
+   long int boundB = 20 * oneMillionNanoseconds;                     // Maximum # of nanoseconds between process requests/releases.	    
    
  
    // Initializes shared memory segments.
@@ -367,7 +368,7 @@ int main(int argc, char** argv) {
           
 
 	    // Increment clock based on a child's scheduled time.
-	    incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
+	    incrementClock(&systemClockSeconds, &systemClockNano, determineBoundB(boundB));
 	          
 	    currentChild = nextChild - 1;
 	    if (nextChild == 0) {
@@ -502,6 +503,10 @@ int main(int argc, char** argv) {
 	       if (childrenActive > 0) {
 	          childrenActive--;
 	       }
+
+	       sendBuffer.processID = processTable[nextChild].processID;
+               sendBuffer.selection = receiveBuffer.selection;
+               sendBuffer.resourceType = receiveBuffer.resourceType;
 
 	       if (totalChildrenLaunched != proc) {
 	          continue;
