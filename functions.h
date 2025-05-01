@@ -50,16 +50,10 @@ typedef struct MultiLevelQueue {
    int rear;
 } MultiLevelQueue;
 
-// Enumerates the two queue levels for P5.
-enum QueueLevels {
-   P0, P1, P2, P3, P4
-};
-
 // Holds message queue information.
 typedef struct messageBuffer {
    long int processID;
    int resourceType;
-   int blocked;
    ResourceTask selection;
 } messageBuffer;
 
@@ -121,18 +115,16 @@ extern int deadlockDetectionAlgCount;
 //For initialization.
 void initializeLogfile();
 void initializeMessageQueue();
-void initializeMatrix(int []);
 void initializeFeedbackQueue(MultiLevelQueue *);
+void initializeMatrix(int []);
 
 // For resource type queues when children have to wait for a resource to become available.
 bool isQueueEmpty(MultiLevelQueue *);
 void enqueue(MultiLevelQueue *, pid_t);
-pid_t dequeue(MultiLevelQueue *);
-pid_t peekQueue(MultiLevelQueue *);
 bool searchQueue(MultiLevelQueue *, int);
+void removeFromQueue(MultiLevelQueue *, int);
 void printAllResourceQueues(MultiLevelQueue *);
 void printOneQueue(MultiLevelQueue *);
-void removeFromQueue(MultiLevelQueue *, int);
 
 // For user input validation.
 void checkForOptargEntryError(int, char []);
@@ -142,17 +134,12 @@ void checkForSimulExceedsProcError(int, int);
 long long int incrementClock(int *, long long int *, int);
 long long int convertSystemTimeToNanosecondsOnly (int *, long long int *);
 long long int determineNextLaunchNanoseconds(int, long long int);
-long long int determineEventWaitTime(int, int, long long int);
 long int determineBoundB(long int);
-int determineTimeQuantum(int);
 void slowDownProgram();
 
 // For process table operations.
 int addToProcessTable(pid_t);
 int findIndexInProcessTable(pid_t);
-void addServiceTimeToProcessTable(int);
-void addWaitTimeToProcessTable(long long int, int);
-//void possiblyUnblockChild(MultiLevelQueue *);
 void removeFromProcessTable(pid_t);
 void printProcessTable();
 void printProcessTableToLogfile();

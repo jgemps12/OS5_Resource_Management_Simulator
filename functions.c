@@ -4,6 +4,9 @@
 #include <math.h>
 
 
+
+/************************************************PROGRAM INITIALIZATION************************************************/
+
 // Create a logfile for process output.
 void initializeLogfile() {
    logOutputFP = fopen(logfile, "w");
@@ -35,11 +38,24 @@ void initializeMessageQueue() {
 }
 
 
+// A wait queue holds processes that are waiting for an unavailable resource type.
 void initializeFeedbackQueue(MultiLevelQueue *queue) {
    queue->front = -1;
    queue->rear = -1;
 }
 
+
+// For the allocation and request matrices, place zeros in every element to initialize them.
+void initializeMatrix(int matrix[]) {
+   int i;
+   for (i = 0; i < 100; i++) {
+      matrix[i] = 0;
+   }
+}
+
+
+
+/**********************************************RESOURCE QUEUE OPERATIONS***********************************************/
 
 bool isQueueEmpty(MultiLevelQueue *queue) {
    bool frontNeverInitialized = (queue->front == -1);
@@ -74,41 +90,8 @@ void enqueue(MultiLevelQueue *queue, pid_t pid) {
    queue->processEntries[queue->rear] = pid;
 }
 
-pid_t dequeue(MultiLevelQueue *queue) {
-   if (isQueueEmpty(queue) == true) {
-      printf("ERROR in oss.c: dequeue() function failed. Queue underflow occurred.\n");
 
-
-      periodicallyTerminateProgram(-1);
-   }
-
-   slowDownProgram();
-
-   pid_t processID = queue->processEntries[queue->front];
-
-   queue->front++;
-
-   if (queue->front > queue->rear) {
-      initializeFeedbackQueue(queue);
-   }
-
-
-   return processID;
-}
-
-// Return value at front of queue WITHOUT removing it.
-pid_t peekQueue(MultiLevelQueue *queue) {
-   if (isQueueEmpty(queue) == false) {
-      int front = queue->front;
-      int frontValue = queue->processEntries[front];
-
-      return frontValue;
-   }
-
-   return -1;
-}
-
-
+// If process ID is in the queue, it will prevent duplicate queue entries.
 bool searchQueue(MultiLevelQueue *queue, int processID) {
    int i;
 	
@@ -129,6 +112,7 @@ bool searchQueue(MultiLevelQueue *queue, int processID) {
 }
 
 
+// Removes from ANY part of the queue (not just the first in line).
 void removeFromQueue(MultiLevelQueue *queue, int processID) {
    bool foundID = false;
    int i;
@@ -160,8 +144,6 @@ void removeFromQueue(MultiLevelQueue *queue, int processID) {
 }
 
 
-
-
 void printAllResourceQueues(MultiLevelQueue queue[]) {
    int i;
    for (i = 0; i < QUEUE_COUNT; i++) {
@@ -173,6 +155,8 @@ void printAllResourceQueues(MultiLevelQueue queue[]) {
    printf("\n");
    fprintf(logOutputFP, "\n");
 }
+
+
 void printOneQueue(MultiLevelQueue *queue) {
    if (isQueueEmpty(queue) == true) {
       printf("(empty)\n");
@@ -192,14 +176,8 @@ void printOneQueue(MultiLevelQueue *queue) {
 }
 
 
-// For the allocation and request matrices, place zeros in every element to initialize them.
-void initializeMatrix(int matrix[]) {
-   int i;
-   for (i = 0; i < 100; i++) {
-      matrix[i] = 0;
-   }
-}
 
+/************************************************USER INPUT VALIDATION*************************************************/
 
 // Displays error messages based on 'optarg' arguments.
 void checkForOptargEntryError(int value, char getoptArgument[]) {
@@ -232,6 +210,10 @@ void checkForSimulExceedsProcError(int simulProcesses, int totalProcesses) {
    }
 }
 
+
+
+/***********************************************SYSTEM CLOCK OPERATIONS************************************************/
+
 // Adjust system time's seconds and nanoseconds.
 long long int incrementClock(int *seconds, long long int *nanoseconds, int increment) {
    (*nanoseconds) += increment;
@@ -262,14 +244,6 @@ long long int convertSystemTimeToNanosecondsOnly(int *seconds, long long int *na
 }
     
 
-// Only deals with system nanoseconds to determine next launch time. 
-/*long long int determineNextLaunchNanoseconds (long long int maxTimeBetweenProcesses, long long int currentNanoTime) {
-   long long int waitTime = (rand() % (maxTimeBetweenProcesses + 1));
-
-   return waitTime + currentNanoTime;
-}
-*/
-
 // Only deals with system nanoseconds to determine next launch time.
 // System seconds is implicitly dealt with in main().
 long long int determineNextLaunchNanoseconds (int intervalMS, long long int oldLaunchTime) {
@@ -278,43 +252,7 @@ long long int determineNextLaunchNanoseconds (int intervalMS, long long int oldL
 
     return newLaunchTime;
 }
-/*
-// Generates a value between 1 and 5 seconds.
-long long int determineEventWaitTime(int secondsWaitTimeMax, int millisecondsWaitTimeMax, long long int systemClockTime) {
-   int secondsToWait = rand() % secondsWaitTimeMax;
-   int millisecondsToWait = rand() % millisecondsWaitTimeMax; 
 
-   if (secondsToWait == secondsWaitTimeMax) {
-      millisecondsToWait = 0;
-   }
-
-   long long int nanoToWait = (secondsToWait * oneBillionNanoseconds) + (millisecondsToWait * 1000000);
-   long long int timeToUnblock = nanoToWait + systemClockTime; 
-   
-
-   return timeToUnblock;
-}
-
-// Return the correct time quantum based on queue level.
-int determineTimeQuantum(int queueLevel) {
-   long int timeQuantum;
-
-   // HIGH PRIORITY
-   if (queueLevel == 0) {
-      timeQuantum = 10 * oneMillionNanoseconds;
-   }
-   // MEDIUM PRIORITY
-   else if (queueLevel == 1) {
-      timeQuantum = 20 * oneMillionNanoseconds;
-   }
-   // LOW PRIORITY
-   else if (queueLevel == 2) {
-      timeQuantum = 40 * oneMillionNanoseconds; 
-   }
-
-   return timeQuantum;
-}
-*/
 
 // OSS grants, denies, or releases resources at a random time between 0 and B nanoseconds.
 long int determineBoundB (long int B) {
@@ -333,6 +271,9 @@ void slowDownProgram() {
    }
 }
 
+
+
+/**********************************************PROCESS TABLE OPERATIONS************************************************/
 
 // These three functions below manage and delete entries in the PCB table.
 int addToProcessTable(pid_t pid) {
@@ -365,6 +306,8 @@ int addToProcessTable(pid_t pid) {
    return -1;
 }
 
+
+// Determine the row that a process ID is located in.
 int findIndexInProcessTable(pid_t pid) {
    int i;
    for (i = 0; i < 20; i++) {
@@ -376,53 +319,7 @@ int findIndexInProcessTable(pid_t pid) {
    return -1;
 }
 
-/*
-void addServiceTimeToProcessTable(int i) {
-   processTable[i].serviceTimeNanoseconds += receiveBuffer.quantumData;
 
-   if (processTable[i].serviceTimeNanoseconds >= oneBillionNanoseconds) {	   
-      processTable[i].serviceTimeSeconds++;
-      processTable[i].serviceTimeNanoseconds -= oneBillionNanoseconds;
-   }
-}
-*/
-/*
-void addWaitTimeToProcessTable(long long int waitTime, int i) {
-   processTable[i].eventWaitNanoseconds = waitTime;
-
-   while (processTable[i].eventWaitNanoseconds >= oneBillionNanoseconds) {
-      processTable[i].eventWaitSeconds++;
-      processTable[i].eventWaitNanoseconds -= oneBillionNanoseconds;
-   }
-}
-*/
-/*
-void possiblyUnblockChild(MultiLevelQueue *queue) {
-   long long int eventWaitNanoOnly;
-   long int dequeuedChild;
-   int i;
-
-   for (i = 0; i < 20; i++) {
-      eventWaitNanoOnly = (processTable[i].eventWaitSeconds * oneBillionNanoseconds) + processTable[i].eventWaitNanoseconds;
-      
-      if (systemNanoOnly >= eventWaitNanoOnly && eventWaitNanoOnly != 0) {
-	 processTable[i].eventWaitSeconds = 0;
-	 processTable[i].eventWaitNanoseconds = 0;
-         processTable[i].blocked = 0;
-
-         while (dequeuedChild != processTable[i].processID) {
-//	    dequeuedChild = dequeue(&queue[3]);
-      	    
-	    if (dequeuedChild == processTable[i].processID) {
-	       break;
-	    }
-	 //   enqueue(&queue[3], dequeuedChild);
-	 }
-	 //enqueue(&queue[0], processTable[i].processID);
-      }  
-   }
-}   
-*/
 void removeFromProcessTable(pid_t pid) {
    int i;
    for (i = 0; i < 20; i++) {
@@ -536,6 +433,7 @@ void printProcessTableToLogfile() {
 
 
 
+/**********************************************MATRIX/VECTOR OPERATIONS************************************************/
 
 // Request matrix represents that a child process is requesting a specific resource type.
 void updateRequestMatrix(int row, int column, int *matrix, ResourceTask option) {
@@ -562,6 +460,8 @@ void updateRequestMatrix(int row, int column, int *matrix, ResourceTask option) 
    }
 }
 
+
+// Allocation matrix represents how many resources a child holds.
 void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask option) {
    int location;
 
@@ -590,6 +490,8 @@ void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask optio
    }
 }
 
+
+// Allocation vector represents how many resources are remaining in the system.
 void updateAllocationVector(int element, int *allocationVector, ResourceTask option) {
    if (option == REQUEST) {	
       allocationVector[element]--;
@@ -598,7 +500,6 @@ void updateAllocationVector(int element, int *allocationVector, ResourceTask opt
       allocationVector[element]++;  
    }
 }
-
 void updateAllocationVector(int row, int *allocationMatrix, int *allocationVector, ResourceTask option) {
    int i; 
    int location; 
@@ -613,12 +514,13 @@ void updateAllocationVector(int row, int *allocationMatrix, int *allocationVecto
    }
 }
 
+
+// If one process holds all 10 of a specific resource type, automatically release one of those 10.
 void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocationVector, MultiLevelQueue *queue) {
    int i;
 
    for (i = 0; i < 100; i++) {
       if (allocationMatrix[i] == 10) {
-         printf("Allocation Matrix Location: %d\n", i);
 
 	 double row = floor(i / 5);
 	 int child = (int) row;
@@ -671,6 +573,7 @@ void printResourceTable(int matrix[]) {
    printResourceTableToLogfile(matrix);
 }
 
+
 void printResourceTableToLogfile(int matrix[]) {
    fprintf(logOutputFP, "OSS: Outputting resource table:\n");
    fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
@@ -691,6 +594,7 @@ void printResourceTableToLogfile(int matrix[]) {
    }
    fprintf(logOutputFP, "\n\n");
 }
+
 
 void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
    int i;
@@ -734,6 +638,10 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
 
 }
 
+
+
+/********************************************MESSAGE PASSING OPERATIONS************************************************/
+
 // Perform msgsnd() operations.
 void sendMessageToUSER() {
    if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), 0) == -1) {
@@ -759,6 +667,9 @@ void receiveMessageFromUSER(int i) {
    }
 }
 
+
+
+/***************************************************USER GUIDANCE******************************************************/
 
 // Displays a help message if user enters './oss -h'.
 void printHelpMessage() {
@@ -787,6 +698,9 @@ void printHelpMessage() {
    exit(EXIT_SUCCESS);
 }
 
+
+
+/*************************************************PROGRAM TERMINATION**************************************************/
 
 void printStatistics () {
    deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;
