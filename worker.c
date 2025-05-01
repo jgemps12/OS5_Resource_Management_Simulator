@@ -28,7 +28,7 @@
 
 // Starting a memory segment for system clock nanoseconds.
 #define SHMKEY2 42070
-#define LONG_BUFFER_SIZE sizeof(long int)
+#define LONG_BUFFER_SIZE sizeof(long long int)
 
 
 // Starting a memory segment for a log file to validate ftok() function.
@@ -44,7 +44,7 @@
 enum ResourceTask {
    REQUEST,
    RELEASE,
-   TERMINATE_PROGRAM
+   TERMINATE_PROCESS
 };
 
 
@@ -52,6 +52,7 @@ enum ResourceTask {
 typedef struct messageBuffer {
    long int processID;
    int resourceType;
+   int blocked;
    ResourceTask selection;
 } messageBuffer;
 
@@ -71,12 +72,15 @@ char *logfileFP = NULL;
 void initializeMessageQueue();
 ResourceTask determineProcessSelection(int);
 int determineResourceType();
+int getAllowedTerminationTimeSeconds(int);
+long long int timeToCheckForTerminations(int, long int);
 void sendMessageToOSS();
 void receiveMessageFromOSS();
 void slowDownProgram();
 
 
 int main(int argc, char** argv) {
+   srand(time(NULL));
   
    // Creates two shared memory identifiers (and one for a log file).
    int secondsShmid = shmget(SHMKEY1, INT_BUFFER_SIZE, 0777);
@@ -86,38 +90,38 @@ int main(int argc, char** argv) {
 
    // Attaches the system time and log file into shared memory.
    int *sharedSeconds = (int *)shmat(secondsShmid, 0, 0);
-   long int *sharedNanoseconds = (long int *)shmat(nanoShmid, 0, 0);
+   long long int *sharedNanoseconds = (long long int *)shmat(nanoShmid, 0, 0);
    logfileFP = (char *)shmat(logfileShmid, 0, 0);
 
 
    // Used for constant system time updated from shared memory.
    int systemClockSeconds = *sharedSeconds;
-   long int systemClockNano = *sharedNanoseconds;
-
+   long long int systemClockNano = *sharedNanoseconds;
+   long long int systemNanoOnly = 0;
 
    // Used for termination time calculations. Will not be updated.
    int initialSystemClockSecs = *sharedSeconds;
    long int initialSystemClockNano = *sharedNanoseconds;        
-   
-   
-   // processSelection uses numbers 1-3 to determine child process's outcome.
-   // probabilityValue randomly chooses between 1 and 1000 to determine processSelection value.
-   srand(time(NULL) ^ getpid());
 
+
+   // Determines the earliest system time that a child process can terminate.
+   int allowedTerminationTimeSeconds = getAllowedTerminationTimeSeconds(initialSystemClockSecs);
+   long int allowedTerminationTimeNano = *sharedNanoseconds;
+
+   // Checks if process should terminate every 250 ms.
+   long long int termCheckTime = *sharedNanoseconds;
+   bool processCanTerminate = false;
+
+   // Initialization of message operations.
    int probabilityValue = 0;
    int processSelection = -1;
-  // int timeQuantumFraction = 0;
-
-
    int resourceType = -1;
    initializeMessageQueue();
 
    
+
    do {
       enum ResourceTask processSelection;
-      // Receives a message from the parent.
-   //   receiveMessageFromOSS();
-
 
       // Compare # of seconds before and after shared memory is re-read.
       int secondsBeforeMemRead = systemClockSeconds;                                              // Before read.
@@ -127,24 +131,30 @@ int main(int argc, char** argv) {
       systemClockNano = *sharedNanoseconds;
 
 
+      systemNanoOnly = (long long int) (systemClockSeconds * 1000000000LL) + systemClockNano;
+      
+      
       // Slow down program to prevent race conditions between Process Table and printf() message times (for oss.c and user.c, respectively).
       int i;
-      for (i = 0; i < 7000000; i++) {
+      for (i = 0; i < 20000000; i++) {
          //  Do nothing.
       }
 
       probabilityValue = (rand() % 1000) + 1;
       resourceType = rand() % 5;
       processSelection = determineProcessSelection(probabilityValue);
-  
+    
+      //printf("secondsBeforeMemRead: %d\t secondsAfterMemRead: %d\n", secondsBeforeMemRead, secondsAfterMemRead);
+      //printf("processCanTerminate: %d\t termCheckTime: %lld\t allowedTerminationSeconds: %d\n", processCanTerminate, termCheckTime, allowedTerminationTimeSeconds);
+      
+      //printf("systemClockSeconds: %d\t systemClockNano: %ld\t allowedTerminationTimeSeconds: %d\t allowedTerminationTimeNano: %ld\n", systemClockSeconds, systemClockNano, allowedTerminationTimeSeconds, allowedTerminationTimeNano);
+
       
       switch (processSelection) {       
 	 // If child decides to REQUEST a resource.
 	 case REQUEST:
             sendBuffer.selection = REQUEST;
             sendBuffer.processID = getpid();
-	   
-
             sendBuffer.resourceType = resourceType;
            // printf("resourceType: %d\n", resourceType);
 
@@ -157,7 +167,6 @@ int main(int argc, char** argv) {
 	 case RELEASE:
 	    sendBuffer.selection = RELEASE;
             sendBuffer.processID = getpid();
-          
 	    sendBuffer.resourceType = resourceType;
 
             sendMessageToOSS();
@@ -166,22 +175,60 @@ int main(int argc, char** argv) {
 
 
 	 // If child decides to TERMINATE a program.
-	 case TERMINATE_PROGRAM:
-            sendBuffer.selection = TERMINATE_PROGRAM;
-	    sendBuffer.processID = getpid();
-     
-	    sendBuffer.resourceType = 0;
+	 case TERMINATE_PROCESS:
+	  
+	    // Termination only allowed if at least 1 second of runtime passes. Until then, release a random resource.
+	    if ((systemClockSeconds > allowedTerminationTimeSeconds) || 
+		  ((systemClockSeconds == allowedTerminationTimeSeconds) && (systemClockNano >= allowedTerminationTimeNano))) {
+               processCanTerminate = true;
+	      // printf("processCanTerminate: %d\t systemClockSeconds: %d\t systemClockNano: %lld\t systemNanoOnly: %lld\t termCheckTime: %lld\n\n\n", processCanTerminate, systemClockSeconds, systemClockNano, systemNanoOnly, termCheckTime);*
+	       if (systemNanoOnly >= termCheckTime) {
+                  sendBuffer.selection == TERMINATE_PROCESS;	 
+               }
+               else {
+	          processSelection = RELEASE;
+                  sendBuffer.selection = RELEASE;
+	       }
+	    
+	    }
+	    else {
+	       processSelection = RELEASE;
+	       sendBuffer.selection = RELEASE;
+
+	       sendBuffer.processID = getpid();
+               sendBuffer.resourceType = resourceType;
+   
+               sendMessageToOSS();
+
+	    }
+
+	    break;
+      }
+
+      //if (processSelection == TERMINATE_PROGRAM && processCanTerminate == true) {
+	// break;
+     // }
+ 
+     // printf("systemClockSeconds: %d\t systemClockNano: %lld\t systemNanoOnly: %lld\n", systemClockSeconds, systemClockNano, systemNanoOnly);
+      if (systemNanoOnly >= termCheckTime) {
+	 if (processCanTerminate == true) {
+            processSelection = TERMINATE_PROCESS;
+	    sendBuffer.selection = TERMINATE_PROCESS;
+	   
+            sendBuffer.processID = getpid();
+            sendBuffer.resourceType = resourceType;
 
             sendMessageToOSS();
-	    
+
 	    break;
+         }
+	 else {
+            termCheckTime = timeToCheckForTerminations(systemClockSeconds, systemClockNano);
+         }
       }
 
       receiveMessageFromOSS();
 
-      if (processSelection == TERMINATE_PROGRAM) {
-         break;
-      }
 
 
       //receiveMessageFromOSS();
@@ -217,34 +264,46 @@ void initializeMessageQueue() {
    }
 }
 
+int getAllowedTerminationTimeSeconds (int systemClockSeconds) {
+   return systemClockSeconds + 1;
+}
+
+// The point in simulated system time that unlocks a child's ability to terminate.
+long long int timeToCheckForTerminations (int systemClockSeconds, long int systemClockNano) {
+   long int oneBillionNS = 1000000000;
+   long int quarterSecond = 250000000;
+   
+   long long int terminationCheckTime = (systemClockSeconds * oneBillionNS) + systemClockNano + quarterSecond;
+ 
+   long long int trueTerminationTime = terminationCheckTime - (terminationCheckTime % quarterSecond);
+   //while (terminationCheckTime >= oneBillionSeconds) {
+     // terminationCheckTime -= oneBillionSeconds;
+   //}
+
+   return trueTerminationTime;
+}
+
 
 // Randomly decides option 1, 2, or 3 based on probability.
 ResourceTask determineProcessSelection (int probabilityValue) {
    enum ResourceTask selection;                            
 
-   // Process runs full time quantum.
+ 
    if (probabilityValue >= 1 && probabilityValue <= 800) {
       selection = REQUEST;
    }
 
-   // Process runs part of quantum, but gets blocked.
-   else if (probabilityValue >= 801 && probabilityValue <= 995) {  
+   else if (probabilityValue >= 801 && probabilityValue <= 980) {  
       selection = RELEASE;
    }
 
-   // Process runs part of quantum, but gets terminated.
-   else if (probabilityValue >= 996 && probabilityValue <= 1000) {
-      selection = TERMINATE_PROGRAM;
+   else if (probabilityValue >= 981 && probabilityValue <= 1000) {
+      selection = TERMINATE_PROCESS;
    }
 
    //printf("probabilityValue: %d\n", probabilityValue); 
    return selection;
-}
-
-
-// Randomly decides resource types R0, R1, R2, R3, or R4.
-/*int determineResourceType () {
-  */ 
+} 
 
 // msgsnd() operations.
 void sendMessageToOSS() {
@@ -261,16 +320,10 @@ void sendMessageToOSS() {
 
 // Nonblocking msgrcv() operations.
 void receiveMessageFromOSS() {
-   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), getpid(), 0) == -1) {
-     // if (errno == ENOMSG) {
-  //       slowDownProgram();
-	 // Continue running worker.c
-     // }
-     // else {
-         printf("ERROR in worker.c: Problem with msgrcv() function.\n");
+   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), getpid(), IPC_NOWAIT) == -1) {
+      printf("ERROR in worker.c: Problem with msgrcv() function.\n");
 
-         exit(-1);
-     // }
+      exit(-1);
    }
 }
 
