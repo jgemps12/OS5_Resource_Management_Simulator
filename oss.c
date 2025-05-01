@@ -97,6 +97,7 @@ long int systemClockIncrement = oneMillionNanoseconds;
 int currentChildIndex = 0;
 
 // Counter and average variables that keep track of statistics. These statistics will be printed at end of program.
+int totalRequestsGranted = 0;
 int requestsGrantedImmediately = 0;
 int requestsGrantedAfterWaiting = 0;
 int processesTerminatedByDeadlock = 0;
@@ -248,53 +249,60 @@ int main(int argc, char** argv) {
       // If children are still available to launch simultaneously.
       if (childrenActive < simul && totalChildrenLaunched < proc) {
          // printf("BEFORE while (1)\n");
-    
-	  pid_t processID;
+         pid_t processID;
            
 
          // Keeps incrementing system clock until a process is ready to launch.
          while (1) {
-//           printf("After WHILE...\n");
-           gettimeofday(&realCurrentTime, NULL);        
+            totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
+           
+   	    gettimeofday(&realCurrentTime, NULL);        
 	  
-	   // Determine when program should stop launching processes.
-           realSeconds = realCurrentTime.tv_sec - realStartTime.tv_sec;
-           realMicroseconds = realCurrentTime.tv_usec - realStartTime.tv_usec;	   
+	    // Determine when program should stop launching processes.
+            realSeconds = realCurrentTime.tv_sec - realStartTime.tv_sec;
+            realMicroseconds = realCurrentTime.tv_usec - realStartTime.tv_usec;	   
 	
 
-	   if (/*realSeconds >= 3 || */totalChildrenLaunched >= 100) {
-	      break;
-	   }
+	    if (/*realSeconds >= 3 || */totalChildrenLaunched >= 100) {
+	       break;
+	    }
 	   
-	   if (realMicroseconds < 0) {
-              realSeconds--;
-	      realMicroseconds += 1000000;
-	   }
+	    if (realMicroseconds < 0) {
+               realSeconds--;
+	       realMicroseconds += 1000000;
+	    }
 
-           if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) { 		   
-	      printProcessTable();
-	      printResourceTable(allocationMatrix);
-           }
-
-	   // If no processes are ready, increment the clock by 1 ms.
-	   incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
+	    // Prints process table every half second.
+            if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) { 		   
+	       printProcessTable();
+            }
 
 
-           // System time in shared memory constantly updates in loop.
-           *secondsShared = systemClockSeconds;
-           *nanosecondsShared = systemClockNano;
+            // Prints resource table every 20 granted requests).
+	    if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0) {
+	       printResourceTable(allocationMatrix);
+	    }
+	   
+	   
+	    // If no processes are ready, increment the clock by 1 ms.
+	    incrementClock(&systemClockSeconds, &systemClockNano, systemClockIncrement);
 
-	   currentLaunchTimeNano = nextLaunchTimeNano;
+
+            // System time in shared memory constantly updates in loop.
+            *secondsShared = systemClockSeconds;
+            *nanosecondsShared = systemClockNano;
+
+	    currentLaunchTimeNano = nextLaunchTimeNano;
 
            
-	   // Launches a child based on [maxTimeBetweenNewProcsNS]. 
-	   if (systemNanoOnly >= nextLaunchTimeNano) {
+	    // Launches a child based on [maxTimeBetweenNewProcsNS]. 
+	    if (systemNanoOnly >= nextLaunchTimeNano) {
 	      
-	      printf("(IN IF STATEMENT): systemNanoOnly: %lld\t nextLaunchTimeNano: %lld\n", systemNanoOnly, nextLaunchTimeNano);
+	       printf("(IN IF STATEMENT): systemNanoOnly: %lld\t nextLaunchTimeNano: %lld\n", systemNanoOnly, nextLaunchTimeNano);
 
-	      processID = fork();
+	       processID = fork();
 
-              nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, currentLaunchTimeNano);
+               nextLaunchTimeNano = determineNextLaunchNanoseconds(intervalInMSToLaunchChildren, currentLaunchTimeNano);
 	      	       
 	       // Makes sure system time updates EXACTLY to when a child launches, without rounding to the next 100 ms.
 	    // long int exactLaunchTime = currentLaunchTimeNano - systemNanoOnly;
@@ -352,6 +360,9 @@ int main(int argc, char** argv) {
       for (nextChild = 0; nextChild < childrenActive; nextChild++) {  
       	 processTable[currentChild].request[receiveBuffer.resourceType] = 0;
       
+         totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
+
+
 	 *secondsShared = systemClockSeconds;
          *nanosecondsShared = systemClockNano;
 
@@ -359,9 +370,16 @@ int main(int argc, char** argv) {
 	 // Print process table every half second of simulated system time. 
 	 if (systemClockNano == 0 || systemClockNano == halfBillionNanoseconds) {
    	    printProcessTable();
-	    printResourceTable(allocationMatrix);
          }   
-       
+        
+	 printf("totalRequestsGranted: %d\n", totalRequestsGranted);
+
+	 // Prints resource table every 20 granted requests.
+         if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0) {
+            printResourceTable(allocationMatrix);
+         }
+
+
 	 if (processTable[nextChild].occupied == 1 && processTable[nextChild].blocked == 0) {	    
 
 	    // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
