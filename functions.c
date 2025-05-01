@@ -703,9 +703,11 @@ void printHelpMessage() {
 /*************************************************PROGRAM TERMINATION**************************************************/
 
 void printStatistics () {
+   totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
    deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;
 
    printf("********************PROGRAM SUMMARY********************\n\n");
+   printf("Total granted requests:\t\t\t %d\n", totalRequestsGranted);
    printf("Requests granted immediately:\t\t %d\n", requestsGrantedImmediately);
    printf("Requests granted after waiting:\t\t %d\n", requestsGrantedAfterWaiting);
    printf("Deadlock detection terminations:\t %d\n", processesTerminatedByDeadlock); 

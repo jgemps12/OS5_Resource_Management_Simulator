@@ -101,6 +101,7 @@ extern long int hundredMS;
 extern int currentChildIndex;
 
 // For program statistics.
+extern int totalRequestsGranted;
 extern int requestsGrantedImmediately;
 extern int requestsGrantedAfterWaiting;
 extern int processesTerminatedByDeadlock;
