@@ -1,6 +1,7 @@
 #include "functions.h"
 #include <stdio.h>
 #include <errno.h>
+#include <math.h>
 
 
 // Create a logfile for process output.
@@ -107,7 +108,61 @@ pid_t peekQueue(MultiLevelQueue *queue) {
    return -1;
 }
 
-void printAllFeedbackQueues(MultiLevelQueue queue[]) {
+
+bool searchQueue(MultiLevelQueue *queue, int processID) {
+   int i;
+	
+   // If queue is empty.
+   if (isQueueEmpty(queue) == true) {
+      return false;
+   }
+   
+   // If process ID is found in the queue.
+   for (i = queue->front; i <= queue->rear; i++) {
+      if (queue->processEntries[i] == processID) {
+         return true;
+      }
+   }
+
+   // If process ID is NOT in the queue.
+   return false;
+}
+
+
+void removeFromQueue(MultiLevelQueue *queue, int processID) {
+   bool foundID = false;
+   int i;
+
+   // If queue is empty, do nothing.	
+   if (queue->front == -1 || queue->rear == -1) {
+      return;
+   }
+   
+   // Attempts to find process ID. If found, shift entries to the left.
+   for (i = queue->front; i <= queue->rear; i++) {
+      if (queue->processEntries[i] == processID) {
+         foundID = true;
+      }
+      if (foundID == true && i < queue->rear) {
+         queue->processEntries[i] = queue->processEntries[i + 1];
+      }
+   }
+
+   // If found, reduce rear index and make queue empty if found process ID is the only element in the queue.
+   if (foundID == true) {
+      queue->rear--;
+
+      if (queue->rear < queue->front) {
+         queue->front = -1;
+	 queue->rear = -1;
+      }
+   }
+}
+
+
+
+
+void printAllResourceQueues(MultiLevelQueue queue[]) {
    int i;
    for (i = 0; i < QUEUE_COUNT; i++) {
       printf("Queue %d: ", i);
@@ -266,9 +321,10 @@ long int determineBoundB (long int B) {
 
    long int nextDecisionTime = rand() % B;
 
-   printf("nextDecisionTime: %ld", nextDecisionTime);
    return nextDecisionTime;
 }
+
+
 // Attempts to prevent race conditions from occurring during message transfers,
 void slowDownProgram() {
    int i;
@@ -496,9 +552,12 @@ void updateRequestMatrix(int row, int column, int *matrix, ResourceTask option) 
       int i;
       location = 5 * row;
 
+      
       for (i = 0; i < 5; i++) {
          matrix[location] = 0;
+	 processTable[row].request[column] = 0;
          location++;
+	 row++;
       }
    }
 }
@@ -553,6 +612,42 @@ void updateAllocationVector(int row, int *allocationMatrix, int *allocationVecto
       }
    }
 }
+
+void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocationVector, MultiLevelQueue *queue) {
+   int i;
+
+   for (i = 0; i < 100; i++) {
+      if (allocationMatrix[i] == 10) {
+         printf("Allocation Matrix Location: %d\n", i);
+
+	 double row = floor(i / 5);
+	 int child = (int) row;
+
+         int resource = i % 5;
+         long int processID = processTable[child].processID;
+
+
+	 printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
+         printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+         fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
+         fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+
+       
+         updateRequestMatrix(child, resource, requestMatrix, RELEASE);
+         updateAllocationMatrix(child, resource, allocationMatrix, RELEASE);
+	 updateAllocationVector(resource, allocationVector, RELEASE);
+
+	 processTable[child].blocked = 0;
+
+         removeFromQueue(&queue[resource], processID);
+
+
+	 break;
+      }
+   }
+}
+
+
 void printResourceTable(int matrix[]) {
    printf("OSS: Outputting resource table:\n");
    printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
@@ -759,6 +854,9 @@ void periodicallyTerminateProgram(int signal) {
 
    // Graceful termination.
    printf("Now exiting program...\n\n");
+
+   printStatistics();
+
 
    exit(0);
 }

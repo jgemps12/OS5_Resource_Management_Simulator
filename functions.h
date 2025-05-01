@@ -7,7 +7,7 @@
 
 // For multi-level feedback queue.
 #define MAX_SIZE 1000
-#define QUEUE_COUNT 4
+#define QUEUE_COUNT 5
 
 
 #include <unistd.h>
@@ -52,14 +52,14 @@ typedef struct MultiLevelQueue {
 
 // Enumerates the two queue levels for P5.
 enum QueueLevels {
-   WAIT,
-   TERMINATION
+   P0, P1, P2, P3, P4
 };
 
 // Holds message queue information.
 typedef struct messageBuffer {
    long int processID;
    int resourceType;
+   int blocked;
    ResourceTask selection;
 } messageBuffer;
 
@@ -124,13 +124,15 @@ void initializeMessageQueue();
 void initializeMatrix(int []);
 void initializeFeedbackQueue(MultiLevelQueue *);
 
-// For feedback queue.
+// For resource type queues when children have to wait for a resource to become available.
 bool isQueueEmpty(MultiLevelQueue *);
 void enqueue(MultiLevelQueue *, pid_t);
 pid_t dequeue(MultiLevelQueue *);
 pid_t peekQueue(MultiLevelQueue *);
-void printAllFeedbackQueues(MultiLevelQueue *);
+bool searchQueue(MultiLevelQueue *, int);
+void printAllResourceQueues(MultiLevelQueue *);
 void printOneQueue(MultiLevelQueue *);
+void removeFromQueue(MultiLevelQueue *, int);
 
 // For user input validation.
 void checkForOptargEntryError(int, char []);
@@ -158,8 +160,9 @@ void printProcessTableToLogfile();
 // For matrix and vector operations.
 void updateRequestMatrix(int, int, int *, ResourceTask);
 void updateAllocationMatrix(int, int, int *, ResourceTask);
-void updateAllocationVector(int, int *, ResourceTask);                      // For REQUEST and RELEASE.
-void updateAllocationVector(int, int *, int *, ResourceTask);               // For TERMINATE_PROCESS.
+void updateAllocationVector(int, int *, ResourceTask);                                  // For REQUEST and RELEASE.
+void updateAllocationVector(int, int *, int *, ResourceTask);                           // For TERMINATE_PROCESS.
+void releaseOneResource(int *, int *, int *, MultiLevelQueue *);
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
 void printChildTerminationMessage(int *, int, long int);
