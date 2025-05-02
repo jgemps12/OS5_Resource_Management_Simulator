@@ -1,12 +1,13 @@
 /* Jesse Gempel
- * 3/18/2025
+ * 4/29/2025
  * Professor Mark Hauschild
  * CMP SCI 4760-001
 */
 
 
 // The user.c file works with CHILD processes.
-// It prints out child and parent process IDs, as well as child process and termination times, to the user for each iteration.
+// It decides whether a child should request a resource, release a resource, or terminate.
+
 
 
 #include <unistd.h>
@@ -52,7 +53,6 @@ enum ResourceTask {
 typedef struct messageBuffer {
    long int processID;
    int resourceType;
-   int blocked;
    ResourceTask selection;
 } messageBuffer;
 
@@ -77,6 +77,8 @@ long long int timeToCheckForTerminations(int, long int);
 void sendMessageToOSS();
 void receiveMessageFromOSS();
 void slowDownProgram();
+
+
 
 
 int main(int argc, char** argv) {
@@ -143,21 +145,16 @@ int main(int argc, char** argv) {
       probabilityValue = (rand() % 1000) + 1;
       resourceType = rand() % 5;
       processSelection = determineProcessSelection(probabilityValue);
-    
-      //printf("secondsBeforeMemRead: %d\t secondsAfterMemRead: %d\n", secondsBeforeMemRead, secondsAfterMemRead);
-      //printf("processCanTerminate: %d\t termCheckTime: %lld\t allowedTerminationSeconds: %d\n", processCanTerminate, termCheckTime, allowedTerminationTimeSeconds);
       
-      //printf("systemClockSeconds: %d\t systemClockNano: %ld\t allowedTerminationTimeSeconds: %d\t allowedTerminationTimeNano: %ld\n", systemClockSeconds, systemClockNano, allowedTerminationTimeSeconds, allowedTerminationTimeNano);
 
-      
       switch (processSelection) {       
+	 
 	 // If child decides to REQUEST a resource.
 	 case REQUEST:
             sendBuffer.selection = REQUEST;
             sendBuffer.processID = getpid();
             sendBuffer.resourceType = resourceType;
-           // printf("resourceType: %d\n", resourceType);
-
+           
             sendMessageToOSS();
 
 	    break;
@@ -180,16 +177,17 @@ int main(int argc, char** argv) {
 	    // Termination only allowed if at least 1 second of runtime passes. Until then, release a random resource.
 	    if ((systemClockSeconds > allowedTerminationTimeSeconds) || 
 		  ((systemClockSeconds == allowedTerminationTimeSeconds) && (systemClockNano >= allowedTerminationTimeNano))) {
-               processCanTerminate = true;
-	      // printf("processCanTerminate: %d\t systemClockSeconds: %d\t systemClockNano: %lld\t systemNanoOnly: %lld\t termCheckTime: %lld\n\n\n", processCanTerminate, systemClockSeconds, systemClockNano, systemNanoOnly, termCheckTime);*
-	       if (systemNanoOnly >= termCheckTime) {
+         
+	       processCanTerminate = true;
+	      
+               if (systemNanoOnly >= termCheckTime) {
                   sendBuffer.selection == TERMINATE_PROCESS;	 
                }
-               else {
+               
+	       else {
 	          processSelection = RELEASE;
                   sendBuffer.selection = RELEASE;
 	       }
-	    
 	    }
 	    else {
 	       processSelection = RELEASE;
@@ -205,11 +203,7 @@ int main(int argc, char** argv) {
 	    break;
       }
 
-      //if (processSelection == TERMINATE_PROGRAM && processCanTerminate == true) {
-	// break;
-     // }
- 
-     // printf("systemClockSeconds: %d\t systemClockNano: %lld\t systemNanoOnly: %lld\n", systemClockSeconds, systemClockNano, systemNanoOnly);
+    
       if (systemNanoOnly >= termCheckTime) {
 	 if (processCanTerminate == true) {
             processSelection = TERMINATE_PROCESS;
@@ -228,10 +222,6 @@ int main(int argc, char** argv) {
       }
 
       receiveMessageFromOSS();
-
-
-
-      //receiveMessageFromOSS();
    }
    while (1);
   
@@ -264,9 +254,11 @@ void initializeMessageQueue() {
    }
 }
 
+
 int getAllowedTerminationTimeSeconds (int systemClockSeconds) {
    return systemClockSeconds + 1;
 }
+
 
 // The point in simulated system time that unlocks a child's ability to terminate.
 long long int timeToCheckForTerminations (int systemClockSeconds, long int systemClockNano) {
@@ -276,10 +268,7 @@ long long int timeToCheckForTerminations (int systemClockSeconds, long int syste
    long long int terminationCheckTime = (systemClockSeconds * oneBillionNS) + systemClockNano + quarterSecond;
  
    long long int trueTerminationTime = terminationCheckTime - (terminationCheckTime % quarterSecond);
-   //while (terminationCheckTime >= oneBillionSeconds) {
-     // terminationCheckTime -= oneBillionSeconds;
-   //}
-
+   
    return trueTerminationTime;
 }
 
@@ -301,17 +290,14 @@ ResourceTask determineProcessSelection (int probabilityValue) {
       selection = TERMINATE_PROCESS;
    }
 
-   //printf("probabilityValue: %d\n", probabilityValue); 
    return selection;
 } 
 
+
 // msgsnd() operations.
-void sendMessageToOSS() {
-//   slowDownProgram();
-   
-   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), 0) == -1) {
+void sendMessageToOSS() {   
+   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
       printf("ERROR in user.c: Problem with msgsnd() function.\n");
-      printf("Cannot send message to oss.c.\n\n");
 
       exit(-1);
    }
