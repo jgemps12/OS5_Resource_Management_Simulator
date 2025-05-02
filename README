@@ -1,0 +1,21 @@
+/* Jesse Gempel - Project 5
+   4/29/2024
+   CMP SCI 4760-001
+   Professor Mark Hauschild
+*/
+
+1.) Resource allocation and deadlock detection both seem to work properly. However, there are times when the program gets stuck and will not finish.
+Other times, it will finish to completion. Sometimes, when a process becomes terminated by deadlock recovery, the program will go into an endless loop.
+
+2.) Deadlock recovery is performed by gathering the first blocked process that contributes to the deadlock and terminating it with kill().
+
+3.) To run the project, type "./oss" followed by any combination of these arguments (all of which are optional):
+    a.) -h
+    b.) -n [integer between 1 and 10]
+    c.) -n [integer between 1 and 10, but less than or equal to integer for -n]
+    d.) -i [integer between 1 and 1000]
+    e.) -f [string for a logfile basename]
+
+    Example: ./oss -n 6 -s 4 -i 500 -f file.txt
+
+4.) git information can be found in the '.git' folder inside this project submission. 
