@@ -1,4 +1,6 @@
 #include "functions.h"
+#include <sys/wait.h>
+#include <sys/ipc.h>
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
@@ -539,6 +541,7 @@ void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocati
          updateAllocationMatrix(child, resource, allocationMatrix, RELEASE);
 	 updateAllocationVector(resource, allocationVector, RELEASE);
 
+         
 	 processTable[child].blocked = 0;
 
          removeFromQueue(&queue[resource], processID);
@@ -549,6 +552,200 @@ void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocati
    }
 }
 
+
+bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *allocationVector, int processes, int resources, MultiLevelQueue *queue) {
+   printf("OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+   fprintf(logOutputFP, "OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+
+
+   int work[resources];
+   bool finish[processes];
+   int deadlockedPIDs[processes];
+   int deadlockedProcesses = 0;
+   int i, j, p;
+   int location;
+
+   // Initialize 'work' vector.
+   for (i = 0; i < resources; i++) {
+       work[i] = allocationVector[i];
+   } 
+
+   // Initialize 'finish' vector. No processes can finish at first.
+   for (i = 0; i < processes; i++) {
+       finish[i] = false;
+   }
+
+   // Check if all processes are blocked.
+   bool allProcessesBlocked = true;
+   int blockedCount = 0;
+
+   for (p = 0; p < processes; p++) {
+      if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
+         blockedCount++;
+
+	 if (processesCanBeFulfilled(requestMatrix, allocationVector, p, resources) == true) {
+            allProcessesBlocked = false;
+
+	    break;
+	 }
+      }
+   }
+
+   printf("\tProcesses deadlocked:\t");
+   fprintf(logOutputFP, "\tProcesses deadlocked:\t");
+
+   // If ALL processes are blocked, then there is a deadlock. Terminate a process.
+   if (blockedCount > 0 && allProcessesBlocked == true) {
+      int deadlockedPID = -1;
+
+      // Find a blocked process to kill.
+      for (p = 0; p < processes; p++) {
+         if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
+            deadlockedPID = p;
+
+	    break;
+	 }
+      }
+
+ 
+      if (deadlockedPID != -1) {
+         int processID = processTable[deadlockedPID].processID;
+	 int location = deadlockedPID * resources;
+         
+	 printf("\n");
+         fprintf(logOutputFP, "\n");
+         printf("\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
+         fprintf(logOutputFP, "\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
+     
+         kill(processID, SIGTERM);
+	 removeFromProcessTable(processID);
+
+	 for (i = 0; i < resources; i++) {
+            processTable[i].blocked = 0;
+	 }
+
+	 removeFromQueue(&queue[resources], processID);
+
+	 return true;
+      }
+   }
+
+   // Determine any processes that can finish.
+   for (p = 0; p < processes; p++) {
+      if (finish[p] == true) {
+         continue;
+      }
+
+      // If all resource requests can be granted, then the processes can finish.
+      if (canRequestBeGranted(requestMatrix, work, p, resources) == true) {
+         finish[p] = true;
+     
+//         printf("finish[%d]: %d ", p, finish[p]); 
+
+         // Allocated resources become released.
+	 location = p * resources;
+
+         for (j = 0; j < resources; j++) {
+            work[j] += allocationMatrix[location];
+            location++;
+         }
+
+         // Check from beginning once again.
+         p = -1;     
+      }
+   } 
+
+   //printf("\tProcesses deadlocked:\t");
+  // fprintf(logOutputFP, "\tProcesses deadlocked:\t");
+   
+
+   // A deadlock exists if a process is not finished. If deadlock exists, return true.
+   for (p = 0; p < processes; p++) { 
+     if (finish[p] == false && processTable[p].occupied == 1) {
+	 printf("P%d\t", p);
+         fprintf(logOutputFP, "P%d\t", p);
+         deadlockedPIDs[deadlockedProcesses++] = p;
+      }
+   }
+
+
+   if (deadlockedProcesses > 0) {
+      i = 0;
+      int status;
+      int processToKill = deadlockedPIDs[0];
+      int processID = processTable[processToKill].processID;
+      int location = i * resources;
+
+      printf("\n");
+      fprintf(logOutputFP, "\n");
+      printf("\tOSS: terminating P%d (PID %d) to remove deadlock.\n", processToKill, processID);
+      fprintf(logOutputFP, "\tOSS: terminating P%d (PID %d) to remove deadlock.\n", processToKill, processID);
+
+      kill(processID, SIGTERM);
+     // printf("Post-deadlock check: Process %d is %s\n", processToKill, (processTable[processToKill].occupied == 0) ? "terminated" : "alive");
+
+     // waitpid(processID, &status, 0);
+     
+      removeFromProcessTable(processID);
+ //     childrenActive--;
+    //  printf("Post-deadlock check: Process %d is %s\n", processToKill, (processTable[processToKill].occupied == 0) ? "terminated" : "alive");    
+
+      for (i = 0; i < resources; i++) {
+         requestMatrix[location] = 0;
+         allocationVector[i] += allocationMatrix[location];
+	 allocationMatrix[location] = 0;
+
+	 location++;
+
+      }
+      for (i = 0; i < processes; i++) {
+         processTable[i].blocked = 0;
+      }
+      removeFromQueue(&queue[resources], processID);
+
+      
+      return true;
+   }
+
+
+   // If no deadlock exists.
+   printf("NONE.\n\n");
+   fprintf(logOutputFP, "\tNONE.\n\n");
+
+   return false;
+}
+
+
+// Checks if there exists an unblocked process.
+bool processesCanBeFulfilled(int *requestMatrix, int *allocationVector, int index, int resources) {
+   int location = index * resources;
+   int i;
+
+   for (i = 0; i < resources; i++) {
+      if (requestMatrix[location + i] > allocationVector[i]) {
+         return false;
+      }
+   }
+
+   return true;
+}
+
+
+// Determines whether a resource type request can be granted for a child.
+bool canRequestBeGranted(int *requestMatrix, int *allocationVector, int processNumber, int resources) {
+   int location = processNumber * resources;
+   int i;
+
+   for (i = 0; i < resources; i++) {
+      if (requestMatrix[location] > allocationVector[i]) {
+	 return false;
+      }
+
+      location++;
+   }
+
+   return true;
+}
 
 void printResourceTable(int matrix[]) {
    printf("OSS: Outputting resource table:\n");
@@ -644,12 +841,15 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
 
 // Perform msgsnd() operations.
 void sendMessageToUSER() {
-   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), 0) == -1) {
-      
-      printf("ERROR in oss.c: Problem with msgsnd() function.\n");
-      printf("Cannot send message to user.c.\n\n");
+   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
+      if (errno == ENOMSG) {
+         // Keep running oss.c.
+      }
+      else {
+         printf("ERROR in oss.c: Problem with msgsnd() function.\n");
 
-      periodicallyTerminateProgram(-1);
+         periodicallyTerminateProgram(-1);
+      }
    }
 }
 

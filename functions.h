@@ -151,6 +151,9 @@ void updateAllocationMatrix(int, int, int *, ResourceTask);
 void updateAllocationVector(int, int *, ResourceTask);                                  // For REQUEST and RELEASE.
 void updateAllocationVector(int, int *, int *, ResourceTask);                           // For TERMINATE_PROCESS.
 void releaseOneResource(int *, int *, int *, MultiLevelQueue *);
+bool runDeadlockAlgorithm(int *, int *, int *, int, int, MultiLevelQueue *);
+bool canRequestBeGranted(int *, int *, int, int);
+bool processesCanBeFulfilled(int *, int *, int, int); 
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
 void printChildTerminationMessage(int *, int, long int);
