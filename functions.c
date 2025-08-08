@@ -92,7 +92,6 @@ void enqueue(MultiLevelQueue *queue, pid_t pid) {
    queue->processEntries[queue->rear] = pid;
 }
 
-
 // If process ID is in the queue, it will prevent duplicate queue entries.
 bool searchQueue(MultiLevelQueue *queue, int processID) {
    int i;
@@ -112,7 +111,6 @@ bool searchQueue(MultiLevelQueue *queue, int processID) {
    // If process ID is NOT in the queue.
    return false;
 }
-
 
 // Removes from ANY part of the queue (not just the first in line).
 void removeFromQueue(MultiLevelQueue *queue, int processID) {
@@ -145,7 +143,6 @@ void removeFromQueue(MultiLevelQueue *queue, int processID) {
    }
 }
 
-
 void printAllResourceQueues(MultiLevelQueue queue[]) {
    int i;
    for (i = 0; i < QUEUE_COUNT; i++) {
@@ -157,7 +154,6 @@ void printAllResourceQueues(MultiLevelQueue queue[]) {
    printf("\n");
    fprintf(logOutputFP, "\n");
 }
-
 
 void printOneQueue(MultiLevelQueue *queue) {
    if (isQueueEmpty(queue) == true) {
@@ -177,10 +173,7 @@ void printOneQueue(MultiLevelQueue *queue) {
    fprintf(logOutputFP, "\n");
 }
 
-
-
 /************************************************USER INPUT VALIDATION*************************************************/
-
 // Displays error messages based on 'optarg' arguments.
 void checkForOptargEntryError(int value, char getoptArgument[]) {
    if ((value <= 0 || value > 10)  && (strcmp(getoptArgument, "-n [proc]") == 0)) {
@@ -202,7 +195,6 @@ void checkForOptargEntryError(int value, char getoptArgument[]) {
    }
 }
 
-
 // Displays error message if # of simlataneous processes exceeds the total process count.
 void checkForSimulExceedsProcError(int simulProcesses, int totalProcesses) {
    if (simulProcesses > totalProcesses) {
@@ -212,10 +204,7 @@ void checkForSimulExceedsProcError(int simulProcesses, int totalProcesses) {
    }
 }
 
-
-
 /***********************************************SYSTEM CLOCK OPERATIONS************************************************/
-
 // Adjust system time's seconds and nanoseconds.
 long long int incrementClock(int *seconds, long long int *nanoseconds, int increment) {
    (*nanoseconds) += increment;
@@ -233,7 +222,6 @@ long long int incrementClock(int *seconds, long long int *nanoseconds, int incre
    return increment;
 }
 
-
 // TOTAL nanoseconds used to determine when to launch the next process.
 long long int convertSystemTimeToNanosecondsOnly(int *seconds, long long int *nanoseconds) {
    long long int nanosecondsWithoutSecs = *nanoseconds;
@@ -244,7 +232,6 @@ long long int convertSystemTimeToNanosecondsOnly(int *seconds, long long int *na
 
    return nanosecondsWithoutSecs;
 }
-    
 
 // Only deals with system nanoseconds to determine next launch time.
 // System seconds is implicitly dealt with in main().
@@ -485,9 +472,10 @@ void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask optio
       int i;
       location = 5 * row;
 
-      for (i = 0; i < 5; i++) {
+      for (i = 0; i < 5; i++) {	 
          matrix[location] = 0;
          location++;
+//	 printResourceTable(matrix);
       }
    }
 }
@@ -502,18 +490,35 @@ void updateAllocationVector(int element, int *allocationVector, ResourceTask opt
       allocationVector[element]++;  
    }
 }
+
 void updateAllocationVector(int row, int *allocationMatrix, int *allocationVector, ResourceTask option) {
    int i; 
-   int location; 
+   int element; 
 
+   printf("TERMINATE THE PROCESS...\n\n");
+  
    if (option == TERMINATE_PROCESS) {
-      location = 5 * row;
+      element = 5 * row;
+
 
       for (i = 0; i < 5; i++) {
-         allocationVector[i] += allocationMatrix[location];
-	 location++;
+         //allocationVector[i] += allocationMatrix[column];
+//	 printf("allocationMatrix[%d] (BEFORE): %d\n", i, allocationMatrix[element/*(5 * location) + i*/]);
+         printf("Allocation vector (BEFORE): %d\n", allocationVector[i]);
+ 	 
+	 allocationVector[i] += allocationMatrix[element];
+		 
+//	 printf("allocationMatrix[%d] (AFTER): %d\n", i, allocationMatrix[element/*(5 * location) + i*/]);
+         printf("Allocation vector (AFTER): %d\n\n", allocationVector[i]);
+
+	 sleep(1);
+	 // printf("Allocation vector:\n");
+	// printf("%d\t", allocationVector[i]);
+	 element++;
       }
    }
+   printResourceTable(allocationMatrix);
+   sleep(2);
 }
 
 
@@ -563,7 +568,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
    int deadlockedPIDs[processes];
    int deadlockedProcesses = 0;
    int i, j, p;
-   int location;
+   int column;
 
    // Initialize 'work' vector.
    for (i = 0; i < resources; i++) {
@@ -595,7 +600,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
    fprintf(logOutputFP, "\tProcesses deadlocked:\t");
 
    // If ALL processes are blocked, then there is a deadlock. Terminate a process.
-   if (blockedCount > 0 && allProcessesBlocked == true) {
+   if (blockedCount > 0 && processes >= 2 &&  allProcessesBlocked == true) {
       int deadlockedPID = -1;
 
       // Find a blocked process to kill.
@@ -616,15 +621,38 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
          fprintf(logOutputFP, "\n");
          printf("\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
          fprintf(logOutputFP, "\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
-     
-         kill(processID, SIGTERM);
+ 
+
+	 printf("processID (before kill()): %d\n", processID);
+	 
+         if (kill(processID, SIGTERM) == -1) {
+            printf("ERROR in OSS: kill() function failed.\n\n");
+
+	    exit(-1);
+	 }
+
 	 removeFromProcessTable(processID);
 
 	 for (i = 0; i < resources; i++) {
             processTable[i].blocked = 0;
+	    printf("deadlockedPID: %d\n", deadlockedPID);
+            printf("allocationMatrix[%d]: %d\n", i, allocationMatrix[(5 * location) + i]);
+
+	    printf("Allocation vector (BEFORE): %d\n", allocationVector[i]);
+
+	    allocationVector[i] += allocationMatrix[(5 * location) + i];
+	    allocationMatrix[(5 * location) + i] = 0;
+
+	    printf("Allocation vector (AFTER): %d\n", allocationVector[i]);
+
+//	    printf("deadlockedPID: %d\n", deadlockedPID);
+  //          printf("allocationMatrix[%d]: %d\n", i, allocationMatrix[(5 * location) + i]);
+            sleep(1);
 	 }
 
+	 printResourceTable(allocationMatrix);
 	 removeFromQueue(&queue[resources], processID);
+         sleep(2);
 
 	 return true;
       }
@@ -643,11 +671,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 //         printf("finish[%d]: %d ", p, finish[p]); 
 
          // Allocated resources become released.
-	 location = p * resources;
+	 column = p * resources;
 
          for (j = 0; j < resources; j++) {
-            work[j] += allocationMatrix[location];
-            location++;
+            work[j] += allocationMatrix[column];
+            column++;
          }
 
          // Check from beginning once again.
@@ -695,9 +723,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
          allocationVector[i] += allocationMatrix[location];
 	 allocationMatrix[location] = 0;
 
+//	 printf("allocationMatrix[%d]: %d", location, allocationMatrix[location]);
+//	 sleep(1);
 	 location++;
-
       }
+  //    sleep(2);
       for (i = 0; i < processes; i++) {
          processTable[i].blocked = 0;
       }
@@ -707,14 +737,12 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
       return true;
    }
 
-
    // If no deadlock exists.
    printf("NONE.\n\n");
    fprintf(logOutputFP, "\tNONE.\n\n");
 
    return false;
 }
-
 
 // Checks if there exists an unblocked process.
 bool processesCanBeFulfilled(int *requestMatrix, int *allocationVector, int index, int resources) {
@@ -769,7 +797,6 @@ void printResourceTable(int matrix[]) {
 
    printResourceTableToLogfile(matrix);
 }
-
 
 void printResourceTableToLogfile(int matrix[]) {
    fprintf(logOutputFP, "OSS: Outputting resource table:\n");
@@ -832,10 +859,7 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
    }
    printf("\n");
    fprintf(logOutputFP, "\n");
-
 }
-
-
 
 /********************************************MESSAGE PASSING OPERATIONS************************************************/
 
