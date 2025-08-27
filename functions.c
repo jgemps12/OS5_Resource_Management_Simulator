@@ -295,7 +295,6 @@ int addToProcessTable(pid_t pid) {
    return -1;
 }
 
-
 // Determine the row that a process ID is located in.
 int findIndexInProcessTable(pid_t pid) {
    int i;
@@ -308,6 +307,30 @@ int findIndexInProcessTable(pid_t pid) {
    return -1;
 }
 
+// Determine the index that the Round-Robin for-loop starts.
+// Since processes periodically terminate, the starting index can change (i.e., it is not ALWAYS 0).
+int findMinimumLoopIndex() {
+   int i;
+   for (i = 0; i < PROCESS_COUNT; i++) {
+      if (processTable[i].occupied == 1) {
+         return i;
+      }
+   }
+
+   return 0;
+}
+
+// Determine the index at which the Round-Robin for-loop ends.
+int findMaximumLoopIndex() {
+   int i;
+   for (i = PROCESS_COUNT - 1; i >= 0; i--) {
+      if (processTable[i].occupied == 1) {
+         return i;
+      }
+   }
+
+   return 0;
+}
 
 void removeFromProcessTable(pid_t pid) {
    int i;
@@ -337,48 +360,69 @@ void printProcessTable() {
    printf("OSS: Outputting process table:\n");
    printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
    printf("Process Table:\n");
-   printf("Entry\t Occupied\t PID\t\t StartS\t StartN\t\t Allocated\t Request\t Blocked\n");
+
+   // Table column names.
+   printf("%-9s %-12s %-10s %-10s %-14s %-15s %-15s %-5s\n", "Entry", "Occupied", "PID", "StartS", "StartN", "Allocated", "Request", "Blocked");
 
    int i, j;
 
-
    for (i = 0; i < 20; i++) {
-      // Prints first 3 columns (Entry, Occupied, PID).
-      printf("%d\t %d\t\t %d\t", i, processTable[i].occupied, processTable[i].processID);
-      if (processTable[i].processID == 0) {
-         printf("\t");
-      }
-
-      // Prints columns 4 and 5 (StartS, StartN).
-      printf(" %d\t %ld\t", processTable[i].startSeconds, processTable[i].startNanoseconds);
-      if (processTable[i].startNanoseconds < 1000000) {
-         printf("\t");
-      }
+      // Prints first 5 columns (Entry, Occupied, PID, StartS, StartN).
+      printf("%-9d %-12d %-11d", i, processTable[i].occupied, processTable[i].processID);
+      printf("%-10d %-15ld", processTable[i].startSeconds, processTable[i].startNanoseconds);
 
       // Prints column 6 (Allocated).
       for (j = 0; j < 5; j++) {
-         printf(" %d", processTable[i].allocated[j]);
+         printf("%-2d", processTable[i].allocated[j]);
       }
-      printf("\t");
-
+      printf("%-6s", " ");
+      
       // Prints column 7 (Request).
       for (j = 0; j < 5; j++) {
-         printf(" %d", processTable[i].request[j]);
+         printf("%-2d", processTable[i].request[j]);
       }
-      printf("\t");
+      printf("%-6s", " ");
 
-
-      // Prints column 8 (Blocked--the final column).
-      printf(" %d\n", processTable[i].blocked);
+      // Prints column 8 (Blocked).
+      printf("%-7d\n", processTable[i].blocked);
    }
-
-   printf("\n\n");
 
    printProcessTableToLogfile();
 }
 
 
 void printProcessTableToLogfile() {
+   fprintf(logOutputFP, "OSS: Outputting process table:\n");
+   fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
+   fprintf(logOutputFP, "Process Table:\n");
+
+   // Table column names.
+   fprintf(logOutputFP, "%-9s %-12s %-10s %-10s %-14s %-15s %-15s %-5s\n", "Entry", "Occupied", "PID", "StartS", "StartN", "Allocated", "Request", "Blocked");
+
+   int i, j;
+
+   for (i = 0; i < 20; i++) {
+      // Prints first 5 columns (Entry, Occupied, PID, StartS, StartN).
+      fprintf(logOutputFP, "%-9d %-12d %-11d", i, processTable[i].occupied, processTable[i].processID);
+      fprintf(logOutputFP, "%-10d %-15ld", processTable[i].startSeconds, processTable[i].startNanoseconds);
+
+      // Prints column 6 (Allocated).
+      for (j = 0; j < 5; j++) {
+         fprintf(logOutputFP, "%-2d", processTable[i].allocated[j]);
+      }
+      fprintf(logOutputFP, "%-6s", " ");
+
+      // Prints column 7 (Request).
+      for (j = 0; j < 5; j++) {
+         fprintf(logOutputFP, "%-2d", processTable[i].request[j]);
+      }
+      fprintf(logOutputFP, "%-6s", " ");
+
+      // Prints column 8 (Blocked).
+      fprintf(logOutputFP, "%-7d\n", processTable[i].blocked);
+   }
+
+	/*
    fprintf(logOutputFP, "OSS: Outputting process table:\n");
    fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
    fprintf(logOutputFP, "Process Table:\n");
@@ -418,6 +462,7 @@ void printProcessTableToLogfile() {
    }
 
    fprintf(logOutputFP, "\n\n");
+   */
 }
 
 
@@ -616,12 +661,14 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
       if (deadlockedPID != -1) {
          int processID = processTable[deadlockedPID].processID;
 	 int location = deadlockedPID * resources;
-         
+         int status, termedPID;
+
 	 printf("\n");
          fprintf(logOutputFP, "\n");
          printf("\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
          fprintf(logOutputFP, "\tOSS: terminating P%d (PID %d) to remove deadlock.\n", deadlockedPID, processID);
- 
+
+
 
 	 printf("processID (before kill()): %d\n", processID);
 	 
@@ -631,7 +678,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	    exit(-1);
 	 }
 
-	 removeFromProcessTable(processID);
+	 waitpid(processID, &status, 0);
+         removeFromProcessTable(processID);
+         
+
+//	 removeFromProcessTable(processID);
 
 	 for (i = 0; i < resources; i++) {
             processTable[i].blocked = 0;
@@ -852,11 +903,12 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
    // If at least one resource type was released before termination.
    for (i = 0; i < 5; i++) {
       if (allocationMatrix[j] > 0) {
-         printf("P%d: %d    ", i, allocationMatrix[j]);
-         fprintf(logOutputFP, "P%d: %d    ", i, allocationMatrix[j]);
+         printf("P%d: %-5d", i, allocationMatrix[j]);
+         fprintf(logOutputFP, "P%d: %-5d", i, allocationMatrix[j]);
       }
       j++;
    }
+
    printf("\n");
    fprintf(logOutputFP, "\n");
 }
@@ -924,20 +976,22 @@ void printHelpMessage() {
 
 
 
-/*************************************************PROGRAM TERMINATION**************************************************/
-
+/***********************************************PROGRAM TERMINATION***************************************************/
 void printStatistics () {
    totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
    deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;
 
    printf("********************PROGRAM SUMMARY********************\n\n");
-   printf("Total granted requests:\t\t\t %d\n", totalRequestsGranted);
-   printf("Requests granted immediately:\t\t %d\n", requestsGrantedImmediately);
-   printf("Requests granted after waiting:\t\t %d\n", requestsGrantedAfterWaiting);
-   printf("Deadlock detection terminations:\t %d\n", processesTerminatedByDeadlock); 
-   printf("Graceful terminations:\t\t\t %d\n", processesTerminatedGracefully);
-   printf("Deadlock termination percentage:\t %.2f%%\n", deadlockDetectionTermPercentage);
-   printf("# of deadlock detection operations:\t %d\n\n", deadlockDetectionAlgCount);
+
+
+
+   printf("Total granted requests: %28d\n", totalRequestsGranted);
+   printf("Requests granted immediately: %22d\n", requestsGrantedImmediately);
+   printf("Requests granted after waiting: %20d\n", requestsGrantedAfterWaiting);
+   printf("Deadlock detection terminations: %19d\n", processesTerminatedByDeadlock);
+   printf("Graceful terminations: %29d\n", processesTerminatedGracefully);
+   printf("Deadlock termination percentage: %18.2f%%\n", deadlockDetectionTermPercentage);
+   printf("# of deadlock detection operations: %16d\n\n", deadlockDetectionAlgCount);
    printf("*******************************************************\n\n");
 }
 
