@@ -362,7 +362,7 @@ void printProcessTable() {
    printf("Process Table:\n");
 
    // Table column names.
-   printf("%-9s %-12s %-10s %-10s %-14s %-15s %-15s %-5s\n", "Entry", "Occupied", "PID", "StartS", "StartN", "Allocated", "Request", "Blocked");
+   printf("%-9s %-12s %-10s %-10s %-14s %-20s %-20s %-5s\n", "Entry", "Occupied", "PID", "StartS", "StartN", "Allocated", "Request", "Blocked");
 
    int i, j;
 
@@ -373,13 +373,13 @@ void printProcessTable() {
 
       // Prints column 6 (Allocated).
       for (j = 0; j < 5; j++) {
-         printf("%-2d", processTable[i].allocated[j]);
+         printf("%-3d", processTable[i].allocated[j]);
       }
       printf("%-6s", " ");
       
       // Prints column 7 (Request).
       for (j = 0; j < 5; j++) {
-         printf("%-2d", processTable[i].request[j]);
+         printf("%-3d", processTable[i].request[j]);
       }
       printf("%-6s", " ");
 
@@ -421,48 +421,6 @@ void printProcessTableToLogfile() {
       // Prints column 8 (Blocked).
       fprintf(logOutputFP, "%-7d\n", processTable[i].blocked);
    }
-
-	/*
-   fprintf(logOutputFP, "OSS: Outputting process table:\n");
-   fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
-   fprintf(logOutputFP, "Process Table:\n");
-   fprintf(logOutputFP, "Entry\t Occupied\t PID\t\t StartS\t StartN\t\t Allocated\t Request\t Blocked\n");
-
-   int i, j;
-
-
-   for (i = 0; i < 20; i++) {
-      // Prints first 3 columns (Entry, Occupied, PID).
-      fprintf(logOutputFP, "%d\t %d\t\t %d\t", i, processTable[i].occupied, processTable[i].processID);
-      if (processTable[i].processID == 0) {
-         fprintf(logOutputFP, "\t");
-      }
-
-      // Prints columns 4 and 5 (StartS, StartN).
-      fprintf(logOutputFP, " %d\t %ld\t", processTable[i].startSeconds, processTable[i].startNanoseconds);
-      if (processTable[i].startNanoseconds < 1000000) {
-         fprintf(logOutputFP, "\t");
-      }
-
-      // Prints column 6 (Allocated).
-      for (j = 0; j < 5; j++) {
-         fprintf(logOutputFP, " %d", processTable[i].allocated[j]);
-      }
-      fprintf(logOutputFP, "\t");
-
-      // Prints column 7 (Request).
-      for (j = 0; j < 5; j++) {
-         fprintf(logOutputFP, " %d", processTable[i].request[j]);
-      }
-      fprintf(logOutputFP, "\t");
-
-
-      // Prints column 8 (Blocked--the final column).
-      fprintf(logOutputFP, " %d\n", processTable[i].blocked);
-   }
-
-   fprintf(logOutputFP, "\n\n");
-   */
 }
 
 
@@ -982,8 +940,6 @@ void printStatistics () {
    deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;
 
    printf("********************PROGRAM SUMMARY********************\n\n");
-
-
 
    printf("Total granted requests: %28d\n", totalRequestsGranted);
    printf("Requests granted immediately: %22d\n", requestsGrantedImmediately);
