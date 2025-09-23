@@ -527,35 +527,29 @@ void updateAllocationVector(int row, int *allocationMatrix, int *allocationVecto
 
 // If one process holds all 10 of a specific resource type, automatically release one of those 10.
 void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocationVector, MultiLevelQueue *queue) {
-   int i;
+	int i;
 
-   for (i = 0; i < 100; i++) {
-      if (allocationMatrix[i] == 10) {
+	for (i = 0; i < 100; i++) {
+		if (allocationMatrix[i] == 10) {
+			double row = floor(i / 5);
+			
+			int child = (int) row;
+			int resource = i % 5;
+			long int processID = processTable[child].processID;
 
-	 double row = floor(i / 5);
-	 int child = (int) row;
+			printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
+			printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+			fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
+			fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
 
-         int resource = i % 5;
-         long int processID = processTable[child].processID;
+			updateRequestMatrix(child, resource, requestMatrix, RELEASE);
+			updateAllocationMatrix(child, resource, allocationMatrix, RELEASE);
+			updateAllocationVector(resource, allocationVector, RELEASE);
+			processTable[child].blocked = 0;
 
-
-	 printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
-         printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-         fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
-         fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-
-       
-         updateRequestMatrix(child, resource, requestMatrix, RELEASE);
-         updateAllocationMatrix(child, resource, allocationMatrix, RELEASE);
-	 updateAllocationVector(resource, allocationVector, RELEASE);
-
-         
-	 processTable[child].blocked = 0;
-
-         removeFromQueue(&queue[resource], processID);
-
-
-	 break;
+			removeFromQueue(&queue[resource], processID);
+			requestsGrantedAfterWaiting++;
+			break;
       }
    }
 }
@@ -579,7 +573,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		work[i] = allocationVector[i];
 	} 
 
-	// Initialize 'finish' vector. No processes can finish at first, and free slots remain 'true'.
+	// Initialize 'finish' vector. No processes can finish at first, and free slots remain 'true' for algorithm to work properly.
 	for (i = 0; i < processes; i++) {
 		if (processTable[i].occupied == 0) {
 			finish[i] = true;
@@ -589,13 +583,18 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		}
 	}
 
-	// Check if all processes are blocked.
+	// Check if at least two processes are blocked.
 	bool anyProcessesBlocked = false;
 	bool anyBlockedSatisfiable = false;
 	int blockedCount = 0;
+	int processesInSystem = 0;
 
 	for (p = 0; p < processes; p++) {
-		if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
+		if (processTable[p].occupied == 1) {
+			processesInSystem++;
+		}
+
+		if (processTable[p].occupied == 1 && processTable[p].blocked == 1 && processesInSystem >= 2) {
 			anyProcessesBlocked = true;
 
 			if (canRequestBeFulfilled(requestMatrix, work, p, resources) == true) {
@@ -606,7 +605,17 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	}
 
 	printf("\tProcesses deadlocked:\t");
-	fprintf(logOutputFP, "\tProcesses deadlocked:\t");
+   fprintf(logOutputFP, "\tProcesses deadlocked:\t");
+
+	// If less than 2 children are active, there is no true deadlock. 
+	// Release one resource so that a child can continue.
+	if (processesInSystem < 2) {
+      printf("\tNONE.\n\n");
+      fprintf(logOutputFP, "\tNONE.\n\n");
+		releaseOneResource(requestMatrix, allocationMatrix, allocationVector, queue);
+     
+		return false;
+	}
 
 	//***SCENARIO #1: If NO blocked processes can be satisfied, then there is a deadlock. Terminate a process.***
 	if (anyProcessesBlocked == true && anyBlockedSatisfiable == false) {
