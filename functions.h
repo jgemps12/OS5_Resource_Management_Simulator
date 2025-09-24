@@ -1,6 +1,9 @@
 #ifndef FUNCTIONS_H_
 #define FUNCTIONS_H_
 
+// For process and resource tables.
+#define PROCESS_COUNT 20
+#define COLUMN_COUNT 5
 
 // For memory queue.
 #define PERMISSIONS 0644        
@@ -29,11 +32,11 @@ struct PCB {
    pid_t processID;                         // Child's process ID.
    int startSeconds;                        // Time when a process FORKED (in seconds).
    long int startNanoseconds;               // Time when a process FORKED (in nanoseconds).
-   int allocated[5];                        // How many of each resource is allocated to a process.
-   int request[5];                          // Which resource is being requested (represented by an element containing 1).
+   int allocated[COLUMN_COUNT];             // How many of each resource is allocated to a process.
+   int request[COLUMN_COUNT];               // Which resource is being requested (represented by an element containing 1).
    int blocked;                             // Is the process blocked (1) or unblocked (0)?
 };
-extern struct PCB processTable[20];
+extern struct PCB processTable[PROCESS_COUNT];
 
 
 // Enumerates options that the child should do.
@@ -43,6 +46,22 @@ enum ResourceTask {
    TERMINATE_PROCESS
 };
 
+// Enumerates events that occur in the program for printing output.
+enum EventOutput {
+	GENERATE_PROCESS,
+	REQUEST_RESOURCE, GRANTED, DENIED,
+	RELEASE_RESOURCE,
+	BEGIN_DEADLOCK_ALGORITHM,
+	DEADLOCK_TERMINATION
+};
+
+// For different methods of terminating child processes.
+enum TerminationTypes {
+	GRACEFUL,
+	DEADLOCK,
+	END_PROGRAM
+};
+	
 // For placing children into wait queues or termination queues.
 typedef struct MultiLevelQueue {
    int processEntries[MAX_SIZE];
@@ -141,6 +160,8 @@ void slowDownProgram();
 // For process table operations.
 int addToProcessTable(pid_t);
 int findIndexInProcessTable(pid_t);
+int findMinimumLoopIndex();
+int findMaximumLoopIndex();
 void removeFromProcessTable(pid_t);
 void printProcessTable();
 void printProcessTableToLogfile();
@@ -151,21 +172,30 @@ void updateAllocationMatrix(int, int, int *, ResourceTask);
 void updateAllocationVector(int, int *, ResourceTask);                                  // For REQUEST and RELEASE.
 void updateAllocationVector(int, int *, int *, ResourceTask);                           // For TERMINATE_PROCESS.
 void releaseOneResource(int *, int *, int *, MultiLevelQueue *);
-bool runDeadlockAlgorithm(int *, int *, int *, int, int, MultiLevelQueue *);
-bool canRequestBeGranted(int *, int *, int, int);
-bool processesCanBeFulfilled(int *, int *, int, int); 
 void printResourceTable(int []);
 void printResourceTableToLogfile(int []);
-void printChildTerminationMessage(int *, int, long int);
+
+// For deadlock algorithm operations.
+bool runDeadlockAlgorithm(int *, int *, int *, int, int, MultiLevelQueue *);
+void initializeWorkAndFinishVectors(int *, bool *, int *, int);
+void analyzeBlockedProcesses(int *, int *, int, bool *, bool *);
+bool canRequestBeFulfilled(int *, int *, int, int);
+bool handleDeadlock(int *, int *, int *, int, MultiLevelQueue *);
+int findABlockedProcessToKill();
+void finishProcessesIfPossible(int *, int *, int *, bool *, int); 
+void releaseResourcesFromTerminatedChildren(int *, int *, int *, int, int);
 
 // For message passing operations.
 void sendMessageToUSER();
 void receiveMessageFromUSER(int);
 
-// For guiding the user.
+// For output printout.
 void printHelpMessage();
+void printEventMessage(int, int, int, int, bool);
+void printChildTerminationMessage(int *, int, long int);
 
-// For terminating the program.
+// For terminating the program or a single process.
+void terminateChildren(int, int, int *);
 void printStatistics();
 void detachAndClearSharedMemory();
 void removeMessageQueue();
