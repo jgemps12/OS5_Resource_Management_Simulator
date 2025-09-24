@@ -3,9 +3,7 @@
 // This time, processes will acquire and release resources while occassionally undergoing deadlocks.
 // Those deadlocks will be detected and recovered to ensure continuing operation of this system.
 
-
 #include "functions.h"
-
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -19,7 +17,6 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <time.h>
-
 
 // Starting a memory segment for system clock seconds.
 #define SHMKEY1 42069
@@ -118,7 +115,6 @@ int main(int argc, char** argv) {
     char intervalName[] = "-i [intervalInMSToLaunchChildren]";
     char logfileName[] = "-f [logfile]";
     
-    
     while ((opt = getopt(argc, argv, "hn:s:i:f:")) != -1) {
         switch (opt) {
             case 'h':
@@ -146,7 +142,7 @@ int main(int argc, char** argv) {
             
             case 'f':
                 char basename[100];
-                
+            
                 // Gathers filename input.
                 strncpy(basename, optarg, sizeof(basename) - 1);
                 basename[sizeof(basename) - 1] = '\0';
@@ -164,22 +160,22 @@ int main(int argc, char** argv) {
                 printf("ERROR in oss.c: Arguments are invalid or you forgot to input a value for them.\n");
                 printf("Please type './oss -h' for help.\n\n");
                 exit(-1);
-            
+                
                 break;
         }
     }    
     
-    bool processesFinished = false;                                  // Determines whether the program should end.
-    bool deadlock = false;															// Did deadlock algorithm find a deadlock.
-    int childrenActive = 0;                                          // # of children running simultaneously (not to be confused with 'proc').
-    int totalChildrenLaunched = 0;                                   // # of children launched so far (not to be confused with 'simul').  
+    bool processesFinished = false;										// Determines whether the program should end.
+    bool deadlock = false;												// Did deadlock algorithm find a deadlock.
+    int childrenActive = 0;												// # of children running simultaneously (not to be confused with 'proc').
+    int totalChildrenLaunched = 0;										// # of children launched so far (not to be confused with 'simul').  
     int nextChild = 0;
     int blocked = 0;
     int numberOfBlockedChildren = 0;
-    long int boundB = 50 * oneMillionNanoseconds;                     // Maximum # of nanoseconds between process requests/releases.	    
-    int halfSecondTablePrintouts = 0;											 // Run deadlock algorithm after 2 printouts (or 1 sec).
-    int lastPrintedRequests = 0;												    // Prevents duplicate resource table printouts.
-
+    long int boundB = 50 * oneMillionNanoseconds;						// Maximum # of nanoseconds between process requests/releases.	    
+    int halfSecondTablePrintouts = 0;									// Run deadlock algorithm after 2 printouts (or 1 sec).
+    int lastPrintedRequests = 0;										// Prevents duplicate resource table printouts.
+    
     // Initializes shared memory segments.
     *secondsShared = 0;
     *nanosecondsShared = 0;
@@ -218,12 +214,12 @@ int main(int argc, char** argv) {
         // If children are still available to launch simultaneously.
         if (childrenActive < simul && totalChildrenLaunched < proc) {
             pid_t processID;
-             
+            
             // Keeps incrementing system clock until a process is ready to launch.
             while (1) {
                 totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
                 numberOfBlockedChildren = 0;
-                          
+                
                 if (totalChildrenLaunched == proc) {
                     break;
                 }
@@ -234,7 +230,6 @@ int main(int argc, char** argv) {
                 
                 if (actualPrintoutDifference >= halfBillionNanoseconds) {
                     printProcessTable();
-                
                     lastTablePrintSeconds = systemClockSeconds;
                     lastTablePrintNano = systemClockNano;
                     halfSecondTablePrintouts++;
@@ -243,14 +238,13 @@ int main(int argc, char** argv) {
                 // Prints resource table every 20 granted requests).
                 if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0 && totalRequestsGranted != lastPrintedRequests) {
                     printResourceTable(allocationMatrix);
-						
-						  lastPrintedRequests = totalRequestsGranted;	
+                    lastPrintedRequests = totalRequestsGranted;	
                 }
                 
                 // Run deadlock detection algorithm after 1 second of simulated system time.
                 if (halfSecondTablePrintouts == 2) {
                     deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
-                     
+                    
                     if (deadlock == true) {
                         processesTerminatedByDeadlock++;
                         childrenActive--;
@@ -278,7 +272,7 @@ int main(int argc, char** argv) {
                     break;
                 }   
             }
-        
+            
             // Work with and runs child processes. 
             if (processID == 0) {
                 execl("./worker", "worker.c", NULL);
@@ -286,22 +280,21 @@ int main(int argc, char** argv) {
                 printf("ERROR in oss.c: the execl() function has failed. Terminating program.\n\n");
                 exit(-1);
             }
-        
+            
             // Work with parent process. Send a message to a running child process.
             if (processID > 0) {
                 childrenActive++;
                 totalChildrenLaunched++;
-                 
+                
                 // PCB operations. Adding a process to the Process Table and queue.
                 if (addToProcessTable(processID) == -1) {
                     printf("ERROR in oss.c: Process Control Block (PCB) table is full.\n");
                     printf("Cannot add PID %d\n", processID);
                 } 
-
-			       printEventMessage(GENERATE_PROCESS, processID, -1, -1, false);
-			   }
+                printEventMessage(GENERATE_PROCESS, processID, -1, -1, false);
+            }
         }
-    
+        
         // For-loop acts as a Round-Robin scheduling mechanism.  
         for (nextChild = minChildIndex; nextChild <= maxChildIndex; nextChild++) {
             minChildIndex = findMinimumLoopIndex();
@@ -319,32 +312,27 @@ int main(int argc, char** argv) {
             long long int actualPrintoutDifference = systemNanoOnly - lastPrintoutTime;
             
             if (actualPrintoutDifference >= halfBillionNanoseconds) {
-                printProcessTable();
-                
+                printProcessTable();   
                 lastTablePrintSeconds = systemClockSeconds;
                 lastTablePrintNano = systemClockNano;
                 halfSecondTablePrintouts++;
             }
-           
-				// Prints resource table every 20 granted requests).
+            
+            // Prints resource table every 20 granted requests).
             if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0 && totalRequestsGranted != lastPrintedRequests) {
                 printResourceTable(allocationMatrix);
-
                 lastPrintedRequests = totalRequestsGranted;
-
             }
-
-
+            
             // Run deadlock detection algorithm after second of simulated system time. 
             if (halfSecondTablePrintouts == 2) {
                 deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
-               
+                
                 if (deadlock == true) {
                     processesTerminatedByDeadlock++;
                     childrenActive--;     
                     continue;
                 }
-                
                 deadlockDetectionAlgCount++;
                 halfSecondTablePrintouts = 0;
             }
@@ -355,10 +343,9 @@ int main(int argc, char** argv) {
             if (processTable[nextChild].blocked == 1) {
                 continue;
             }
-         
+            
             if (processTable[nextChild].blocked == 1) {
-                numberOfBlockedChildren++;
-                
+                numberOfBlockedChildren++;  
                 if (numberOfBlockedChildren == childrenActive) {
                     numberOfBlockedChildren = 0;
                     break;
@@ -379,7 +366,7 @@ int main(int argc, char** argv) {
                 
                 // Parent process receives a message from a child process. Output printed to a logfile.
                 receiveMessageFromUSER(nextChild);
-            
+                
                 // Another buffer stores info about what the parent receives from a child.
                 receiveBuffer.processID = processTable[nextChild].processID;
                 
@@ -393,12 +380,12 @@ int main(int argc, char** argv) {
                     if (allocationVector[vectorIndex] > 0) { 
                         printEventMessage(REQUEST_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, true);
                         processTable[nextChild].request[receiveBuffer.resourceType] = 0;
-               
+                        
                         updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, REQUEST);
                         updateAllocationVector(receiveBuffer.resourceType, allocationVector, REQUEST);
                         requestsGrantedImmediately++;
                     }
-                        
+                    
                     // If space is unavailable for a resource type according to allocation vector.
                     // Reject resource type, send child to wait queue, and make it sleep until it is finally available.
                     else {
@@ -418,12 +405,12 @@ int main(int argc, char** argv) {
                 
                 // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
                 if (receiveBuffer.selection == RELEASE && allocationMatrix[matrixIndex] > 0) {
-						  printEventMessage(RELEASE_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
+                    printEventMessage(RELEASE_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, RELEASE);
                     updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, RELEASE);
                     updateAllocationVector(receiveBuffer.resourceType, allocationVector, RELEASE);
                 }
-                    
+                
                 // If the user process sends back a negative number for a time quantum, end child process.
                 if (receiveBuffer.selection == TERMINATE_PROCESS) {     
                     int status, pid;
@@ -432,24 +419,24 @@ int main(int argc, char** argv) {
                     printChildTerminationMessage(allocationMatrix, nextChild, receiveBuffer.processID);
                     updateAllocationVector(nextChild, allocationMatrix, allocationVector, TERMINATE_PROCESS);
                     updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
-                   
-						  terminateChildren(GRACEFUL, receiveBuffer.processID, &childrenActive);
-			
-						  // If any children are blocked due to unavailable resource types prior to child termination, unblock them.
-						  int p;
-						  for (p = 0; p < PROCESS_COUNT; p++) {
-						     if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
-         				     if (canRequestBeFulfilled(requestMatrix, allocationMatrix, p, RESOURCE_COUNT) == true) {
-            				     processTable[p].blocked = 0;
-         					  }
-      					  }
-   					  }
-               
+                    
+                    terminateChildren(GRACEFUL, receiveBuffer.processID, &childrenActive);
+                    
+                    // If any children are blocked due to unavailable resource types prior to child termination, unblock them.
+                    int p;
+                    for (p = 0; p < PROCESS_COUNT; p++) {
+                        if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
+                            if (canRequestBeFulfilled(requestMatrix, allocationMatrix, p, RESOURCE_COUNT) == true) {
+                                processTable[p].blocked = 0;
+                            }
+                        }
+                    }
+                    
                     receiveBuffer.selection = REQUEST;
                     sendBuffer.processID = processTable[nextChild].processID;
                     sendBuffer.selection = receiveBuffer.selection;
                     sendBuffer.resourceType = receiveBuffer.resourceType;
-                   
+                    
                     // Remove process ID from all wait queues after it terminates.
                     for (i = 0; i < QUEUE_COUNT; i++) {
                         removeFromQueue(&resourceQueue[i], sendBuffer.processID);
@@ -487,7 +474,7 @@ int main(int argc, char** argv) {
             }
         } 
     }
-
+    
     printProcessTable();
     printResourceTable(allocationMatrix);
     
