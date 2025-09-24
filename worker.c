@@ -1,13 +1,5 @@
-/* Jesse Gempel
- * 4/29/2025
- * Professor Mark Hauschild
- * CMP SCI 4760-001
-*/
-
-
 // The user.c file works with CHILD processes.
 // It decides whether a child should request a resource, release a resource, or terminate.
-
 
 
 #include <unistd.h>
@@ -48,7 +40,6 @@ enum ResourceTask {
    TERMINATE_PROCESS
 };
 
-
 // Holds message queue information.
 typedef struct messageBuffer {
    long int processID;
@@ -56,17 +47,14 @@ typedef struct messageBuffer {
    ResourceTask selection;
 } messageBuffer;
 
-
 // Initializes information for message buffer.
 messageBuffer receiveBuffer;
 messageBuffer sendBuffer;
 int messageQueueID;
 key_t key;
 
-
 // Logfile pointer.
 char *logfileFP = NULL;
-
 
 // Function prototypes.
 void initializeMessageQueue();
@@ -77,8 +65,6 @@ long long int timeToCheckForTerminations(int, long int);
 void sendMessageToOSS();
 void receiveMessageFromOSS();
 void slowDownProgram();
-
-
 
 
 int main(int argc, char** argv) {
@@ -272,45 +258,50 @@ long long int timeToCheckForTerminations (int systemClockSeconds, long int syste
    return trueTerminationTime;
 }
 
-
 // Randomly decides option 1, 2, or 3 based on probability.
 ResourceTask determineProcessSelection (int probabilityValue) {
    enum ResourceTask selection;                            
 
  
-   if (probabilityValue >= 1 && probabilityValue <= 800) {
+   if (probabilityValue >= 1 && probabilityValue <= 950) {
       selection = REQUEST;
    }
 
-   else if (probabilityValue >= 801 && probabilityValue <= 980) {  
+   else if (probabilityValue >= 951 && probabilityValue <= 990) {  
       selection = RELEASE;
    }
 
-   else if (probabilityValue >= 981 && probabilityValue <= 1000) {
+   else if (probabilityValue >= 991 && probabilityValue <= 1000) {
       selection = TERMINATE_PROCESS;
    }
 
    return selection;
 } 
 
-
 // msgsnd() operations.
 void sendMessageToOSS() {   
-   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
-      printf("ERROR in user.c: Problem with msgsnd() function.\n");
-
-      exit(-1);
-   }
+	if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
+		if (errno = ENOMSG) {
+			// Keep running worker.c
+		}
+		else {
+			printf("ERROR in user.c: Problem with msgsnd() function.\n");
+			exit(-1);
+		}
+	}
 }
-
 
 // Nonblocking msgrcv() operations.
 void receiveMessageFromOSS() {
-   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), getpid(), IPC_NOWAIT) == -1) {
-      printf("ERROR in worker.c: Problem with msgrcv() function.\n");
-
-      exit(-1);
-   }
+	if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), getpid(), IPC_NOWAIT) == -1) {
+		if (errno = ENOMSG) {
+			// Keep running worker.c.
+		}
+		else {
+			printf("ERROR in worker.c: Problem with msgrcv() function.\n");
+			exit(-1);
+		}
+	}
 }
 
 void slowDownProgram() {
