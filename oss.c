@@ -178,7 +178,8 @@ int main(int argc, char** argv) {
     int numberOfBlockedChildren = 0;
     long int boundB = 50 * oneMillionNanoseconds;                     // Maximum # of nanoseconds between process requests/releases.	    
     int halfSecondTablePrintouts = 0;											 // Run deadlock algorithm after 2 printouts (or 1 sec).
-    
+    int lastPrintedRequests = 0;												    // Prevents duplicate resource table printouts.
+
     // Initializes shared memory segments.
     *secondsShared = 0;
     *nanosecondsShared = 0;
@@ -240,8 +241,10 @@ int main(int argc, char** argv) {
                 }
                 
                 // Prints resource table every 20 granted requests).
-                if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0) {
+                if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0 && totalRequestsGranted != lastPrintedRequests) {
                     printResourceTable(allocationMatrix);
+						
+						  lastPrintedRequests = totalRequestsGranted;	
                 }
                 
                 // Run deadlock detection algorithm after 1 second of simulated system time.
@@ -322,12 +325,16 @@ int main(int argc, char** argv) {
                 lastTablePrintNano = systemClockNano;
                 halfSecondTablePrintouts++;
             }
-            
-            // Prints resource table every 20 granted requests.
-            if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0) {
+           
+				// Prints resource table every 20 granted requests).
+            if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0 && totalRequestsGranted != lastPrintedRequests) {
                 printResourceTable(allocationMatrix);
+
+                lastPrintedRequests = totalRequestsGranted;
+
             }
-            
+
+
             // Run deadlock detection algorithm after second of simulated system time. 
             if (halfSecondTablePrintouts == 2) {
                 deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
@@ -405,7 +412,6 @@ int main(int argc, char** argv) {
                         
                         processTable[nextChild].request[receiveBuffer.resourceType] = 1;
                         processTable[nextChild].blocked = 1;
-                        printProcessTable();
                     }
                 }
                 int matrixIndex = 5 * nextChild + receiveBuffer.resourceType;
