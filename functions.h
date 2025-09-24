@@ -1,5 +1,14 @@
 #ifndef FUNCTIONS_H_
 #define FUNCTIONS_H_
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/msg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
 
 // For process and resource tables.
 #define PROCESS_COUNT 20
@@ -11,19 +20,6 @@
 // For multi-level feedback queue.
 #define MAX_SIZE 1000
 #define QUEUE_COUNT 5
-
-
-#include <unistd.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/msg.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-
-
 
 /*********************************STRUCTS************************************/
 // For process table operations.
@@ -38,6 +34,12 @@ struct PCB {
 };
 extern struct PCB processTable[PROCESS_COUNT];
 
+// For placing children into wait queues or termination queues.
+typedef struct MultiLevelQueue {
+   int processEntries[MAX_SIZE];
+   int front;
+   int rear;
+} MultiLevelQueue;
 
 // Enumerates options that the child should do.
 enum ResourceTask {
@@ -62,13 +64,6 @@ enum TerminationTypes {
 	END_PROGRAM
 };
 	
-// For placing children into wait queues or termination queues.
-typedef struct MultiLevelQueue {
-   int processEntries[MAX_SIZE];
-   int front;
-   int rear;
-} MultiLevelQueue;
-
 // Holds message queue information.
 typedef struct messageBuffer {
    long int processID;
@@ -76,18 +71,7 @@ typedef struct messageBuffer {
    ResourceTask selection;
 } messageBuffer;
 
-
-// Variables for message buffer.
-extern messageBuffer sendBuffer;
-extern messageBuffer receiveBuffer;
-extern int messageQueueID;
-extern key_t key;
-
-
-
-
 /****************************GLOBAL VARIABLES********************************/
-
 // For log file operations.
 extern char logfile[105];
 extern char suffix[];
@@ -98,6 +82,12 @@ extern char *logfileFP;
 extern int secondsShmid;
 extern long int nanoShmid;
 extern int logfileShmid;
+
+// For message buffer operations.
+extern messageBuffer sendBuffer;
+extern messageBuffer receiveBuffer;
+extern int messageQueueID;
+extern key_t key;
 
 // For system clock operations.
 extern int systemClockSeconds;
@@ -128,10 +118,7 @@ extern int processesTerminatedGracefully;
 extern double deadlockDetectionTermPercentage;
 extern int deadlockDetectionAlgCount;
 
-
-
 /*************************FUNCTION PROTOTYPES********************************/
-
 //For initialization.
 void initializeLogfile();
 void initializeMessageQueue();
@@ -200,8 +187,6 @@ void printStatistics();
 void detachAndClearSharedMemory();
 void removeMessageQueue();
 void periodicallyTerminateProgram(int);
-
-
 
 
 #endif
