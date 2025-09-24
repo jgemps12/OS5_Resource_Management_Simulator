@@ -554,12 +554,8 @@ void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocati
    }
 }
 
-
-
 bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *allocationVector, int processes, int resources, MultiLevelQueue *queue) {
-	printf("OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
-	fprintf(logOutputFP, "OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
-
+	printEventMessage(BEGIN_DEADLOCK_ALGORITHM, -1, -1, -1, false);
 
 	int work[resources];
 	bool finish[processes];
@@ -638,9 +634,8 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 			int victimPID = processTable[victimProcessIndex].processID;
 			int status;
 
-			printf("\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-			fprintf(logOutputFP, "\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-
+			printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
+	
          if (kill(victimPID, SIGTERM) == -1) {
 				printf("ERROR in OSS: kill() function failed.\n\n");
 				exit(-1);
@@ -662,20 +657,15 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 				processTable[i].blocked = 0;
 			}
 		
-			printProcessTable();
 			printResourceTable(allocationMatrix);
 			removeFromQueue(queue, victimPID);
   			removeFromProcessTable(victimPID);    
-
-			printProcessTable();
-		
 
 			return true;
 		}
 	}
 
 	//***SCENARIO #2: Determine any processes that can finish.
-
 	bool progress = true;
 
 	while (progress == true) {
@@ -729,9 +719,8 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		int victimPID = processTable[victimProcessIndex].processID;
 		int location = victimProcessIndex * resources;
         
-		printf("\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-		fprintf(logOutputFP, "\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-
+		printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
+	
 		// Kill and terminate victim processes.
 		if (kill(victimPID, SIGTERM) == -1) {
 			printf("ERROR in OSS: kill() function failed.\n\n");
@@ -739,8 +728,6 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		}
 	
 		waitpid(victimPID, &status, 0);
-
-		//removeFromProcessTable(processID);  
 
 		// Release all resources from killed/terminated processes.
 		for (i = 0; i < resources; i++) {
@@ -754,13 +741,8 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 			processTable[i].blocked = 0;
 		}
 
-//		removeFromProcessTable(victimPID);
-		//printf("childrenActive: %d", childrenActive);
 		removeFromQueue(queue, victimPID);
 		removeFromProcessTable(victimPID);
-
-		printProcessTable();
-		printResourceTable(allocationMatrix);
 
 		return true;
 	}
@@ -796,9 +778,8 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 				break;
 			}
 		}
-		printf("\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-      fprintf(logOutputFP, "\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", victimProcessIndex, victimPID);
-
+		printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
+	
       // Kill and terminate victim processes.
       if (kill(victimPID, SIGTERM) == -1) {
          printf("ERROR in OSS: kill() function failed.\n\n");
@@ -806,8 +787,6 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
       }
 
       waitpid(victimPID, &status, 0);
-
-      //removeFromProcessTable(processID);
 
       // Release all resources from killed/terminated processes.
       for (i = 0; i < resources; i++) {
@@ -828,8 +807,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	printf("NONE.\n\n");
 	fprintf(logOutputFP, "\tNONE.\n\n");
 
-	return false;
-	
+	return false;	
 }
 
 // Checks if there exists an unblocked process.
@@ -905,51 +883,7 @@ void printResourceTableToLogfile(int matrix[]) {
    fprintf(logOutputFP, "\n\n");
 }
 
-/*
-void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
-   int i;
-   int j = 5 * child;
-   bool isAllocationMatrixRowEmpty = true;
-
-   printf("---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
-   printf("\tResources released: ");
-   fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
-   fprintf(logOutputFP, "\tResources released: ");
-
-
-   // Determine whether to print resource type quantities or 'NONE' for released resources.
-   for (i = 0; i < 5; i++) {
-      if (allocationMatrix[j] > 0) {
-         isAllocationMatrixRowEmpty = false;
-
-         break;
-      }
-      j++;
-   }
-
-   j = 5 * child;
-
-   // If no resources were released before termination.
-   if (isAllocationMatrixRowEmpty == true) {
-      printf("NONE\n");
-      fprintf(logOutputFP, "NONE\n");
-   }
-
-   // If at least one resource type was released before termination.
-   for (i = 0; i < 5; i++) {
-      if (allocationMatrix[j] > 0) {
-         printf("P%d: %-5d", i, allocationMatrix[j]);
-         fprintf(logOutputFP, "P%d: %-5d", i, allocationMatrix[j]);
-      }
-      j++;
-   }
-
-   printf("\n");
-   fprintf(logOutputFP, "\n");
-}
-*/
 /********************************************MESSAGE PASSING OPERATIONS************************************************/
-
 // Perform msgsnd() operations.
 void sendMessageToUSER() {
    if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
@@ -977,8 +911,6 @@ void receiveMessageFromUSER(int i) {
       }
    }
 }
-
-
 
 /************************************************OUTPUT OPERATIONS****************************************************/
 // Displays a help message if user enters './oss -h'.
@@ -1022,7 +954,6 @@ void printEventMessage(int event, int pid, int resource, int childIndex, bool re
 			printf("OSS: Granting P%d (PID %d)'s request for R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
 			fprintf(logOutputFP, "OSS: Granting P%d (PID %d)'s request for R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
 		}
-
 		else {
 			printf("OSS: No instances of R%d are available. ", resource);
          printf("P%d (PID %d) added to wait queue at time %d:%lld.\n", childIndex, pid, systemClockSeconds, systemClockNano);
@@ -1035,6 +966,15 @@ void printEventMessage(int event, int pid, int resource, int childIndex, bool re
 		printf("OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
       fprintf(logOutputFP, "OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
    }
+
+	else if (event == BEGIN_DEADLOCK_ALGORITHM) {
+		printf("OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+   	fprintf(logOutputFP, "OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
+	}	
+	else if (event == DEADLOCK_TERMINATION) {
+		printf("\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", childIndex, pid);
+      fprintf(logOutputFP, "\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", childIndex, pid);
+	}
 }
 
 void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
@@ -1080,6 +1020,32 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
 }
 
 /***********************************************PROGRAM TERMINATION***************************************************/
+void terminateChildren (int termination, int pidToTerminate, int * childrenActive) {
+	int pid, status;
+
+	if (termination == GRACEFUL) {
+      kill(pidToTerminate, SIGTERM);
+
+      while (1) {
+         pid_t pid = waitpid(pidToTerminate, &status, WNOHANG);
+
+         if (pid == 0) {
+            usleep(10000);
+            continue;
+         }
+         else {
+            removeFromProcessTable(pidToTerminate);
+            processesTerminatedGracefully++;
+				printf("childrenActive (before): %d\n", *childrenActive);
+            (*childrenActive)--;
+				printf("childrenActive (after): %d\n", *childrenActive);
+            break;
+         }
+      }
+   }
+}
+
+
 void printStatistics () {
    totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
    deadlockDetectionTermPercentage = ((double)processesTerminatedByDeadlock / ((double)processesTerminatedByDeadlock + (double)processesTerminatedGracefully)) * 100;

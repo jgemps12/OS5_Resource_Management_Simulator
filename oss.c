@@ -378,7 +378,6 @@ int main(int argc, char** argv) {
                 
                 // Prints resource type that a process has requested.
                 if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && nextChild >= 0) {
-//						  printEventMessage(REQUEST_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, REQUEST);
                     
                     int vectorIndex = receiveBuffer.resourceType;
@@ -420,35 +419,16 @@ int main(int argc, char** argv) {
                 }
                     
                 // If the user process sends back a negative number for a time quantum, end child process.
-                if (receiveBuffer.selection == TERMINATE_PROCESS) {
-               //     int i;
-                    
+                if (receiveBuffer.selection == TERMINATE_PROCESS) {     
                     int status, pid;
                     
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, TERMINATE_PROCESS);
                     printChildTerminationMessage(allocationMatrix, nextChild, receiveBuffer.processID);
                     updateAllocationVector(nextChild, allocationMatrix, allocationVector, TERMINATE_PROCESS);
                     updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, TERMINATE_PROCESS);
-                    
-                    // Terminate the process gracefully.    
-      				  kill(receiveBuffer.processID, SIGTERM);              
-		
-						  while (1) {
-                        pid_t pid = waitpid(receiveBuffer.processID, &status, WNOHANG);
-                    
-                        if (pid == 0) {
-									 usleep(10000);
-                            continue;
-                        }
-                        else {
-                            removeFromProcessTable(receiveBuffer.processID);
-                            processesTerminatedGracefully++;
-                            childrenActive--;
-                            
-                            break;
-                        }
-                    }
-
+                   
+						  terminateChildren(GRACEFUL, receiveBuffer.processID, &childrenActive);
+			
 						  // If any children are blocked due to unavailable resource types prior to child termination, unblock them.
 						  int p;
 						  for (p = 0; p < PROCESS_COUNT; p++) {
