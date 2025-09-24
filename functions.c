@@ -478,7 +478,6 @@ void updateAllocationMatrix(int row, int column, int *matrix, ResourceTask optio
       for (i = 0; i < 5; i++) {	 
          matrix[location] = 0;
          location++;
-//	 printResourceTable(matrix);
       }
    }
 }
@@ -498,30 +497,14 @@ void updateAllocationVector(int row, int *allocationMatrix, int *allocationVecto
    int i; 
    int element; 
 
-   printf("TERMINATE THE PROCESS...\n\n");
-  
    if (option == TERMINATE_PROCESS) {
       element = 5 * row;
 
-
-      for (i = 0; i < 5; i++) {
-         //allocationVector[i] += allocationMatrix[column];
-//	 printf("allocationMatrix[%d] (BEFORE): %d\n", i, allocationMatrix[element/*(5 * location) + i*/]);
-         printf("Allocation vector (BEFORE): %d\n", allocationVector[i]);
- 	 
-	 allocationVector[i] += allocationMatrix[element];
-		 
-//	 printf("allocationMatrix[%d] (AFTER): %d\n", i, allocationMatrix[element/*(5 * location) + i*/]);
-         printf("Allocation vector (AFTER): %d\n\n", allocationVector[i]);
-
-
-	 // printf("Allocation vector:\n");
-	// printf("%d\t", allocationVector[i]);
-	 element++;
+      for (i = 0; i < 5; i++) { 	 
+			allocationVector[i] += allocationMatrix[element];
+	 		element++;
       }
    }
-   printResourceTable(allocationMatrix);
-
 }
 
 
@@ -537,10 +520,7 @@ void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocati
 			int resource = i % 5;
 			long int processID = processTable[child].processID;
 
-			printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
-			printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-			fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", child, processID, resource);
-			fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
+      	printEventMessage(RELEASE_RESOURCE, processID, resource, child, false);
 
 			updateRequestMatrix(child, resource, requestMatrix, RELEASE);
 			updateAllocationMatrix(child, resource, allocationMatrix, RELEASE);
@@ -549,58 +529,78 @@ void releaseOneResource(int *requestMatrix, int *allocationMatrix, int *allocati
 
 			removeFromQueue(&queue[resource], processID);
 			requestsGrantedAfterWaiting++;
+
 			break;
       }
    }
 }
 
+void printResourceTable(int matrix[]) {
+   printf("OSS: Outputting resource table:\n");
+   printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
+   printf("Resource table:\n");
+   printf("\t R0\t R1\t R2\t R3\t R4\n");
+   
+   int i, j, k;
+
+   for (i = 0; i < 20; i++) {
+      printf("P%d\t ", i);
+
+      for (j = 0; j < 5; j++) {
+         k = (5 * i) + j;
+	 
+	 printf("%d\t ", matrix[k]);
+      }
+      printf("\n");
+   }
+   printf("\n\n");
+
+   printResourceTableToLogfile(matrix);
+}
+
+void printResourceTableToLogfile(int matrix[]) {
+   fprintf(logOutputFP, "OSS: Outputting resource table:\n");
+   fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
+   fprintf(logOutputFP, "Resource table:\n");
+   fprintf(logOutputFP, "\t R0\t R1\t R2\t R3\t R4\n");
+
+   int i, j, k;
+
+   for (i = 0; i < 20; i++) {
+      fprintf(logOutputFP, "P%d\t ", i);
+
+      for (j = 0; j < 5; j++) {
+         k = (5 * i) + j;
+
+         fprintf(logOutputFP, "%d\t ", matrix[k]);
+      }
+      fprintf(logOutputFP, "\n");
+   }
+   fprintf(logOutputFP, "\n\n");
+}
+
+/******************************************DEADLOCK ALGORITHM OPERATIONS***********************************************/
 bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *allocationVector, int processes, int resources, MultiLevelQueue *queue) {
 	printEventMessage(BEGIN_DEADLOCK_ALGORITHM, -1, -1, -1, false);
 
 	int work[resources];
 	bool finish[processes];
 	int deadlockedPIDs[processes];
+	bool anyProcessesBlocked = false;
+	bool anyBlockedSatisfiable = false;
 	int deadlockedProcesses = 0;
+	int blockedCount = 0;
 	int i, j, p;
 	int column;
 
-	// Initialize 'work' vector to hold currently available resources.
-	for (i = 0; i < resources; i++) {
-		work[i] = allocationVector[i];
-	} 
-
-	// Initialize 'finish' vector. No processes can finish at first, and free slots remain 'true' for algorithm to work properly.
-	for (i = 0; i < PROCESS_COUNT; i++) {
-		if (processTable[i].occupied == 0) {
-			finish[i] = true;
-		}
-		else {
-			finish[i] = false;
-		}
-		p++;
-	}
-
-	// Check if at least two processes are blocked.
-	bool anyProcessesBlocked = false;
-	bool anyBlockedSatisfiable = false;
-	int blockedCount = 0;
-
-	for (p = 0; p < PROCESS_COUNT; p++) {
-		if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
-			anyProcessesBlocked = true;
-
-			if (canRequestBeFulfilled(requestMatrix, work, p, resources) == true) {
-				anyBlockedSatisfiable = true;
-				break;
-			}
-		}
-	}
+	initializeWorkAndFinishVectors(work, finish, allocationVector, resources);
+	analyzeBlockedProcesses(requestMatrix, work, resources, &anyProcessesBlocked, &anyBlockedSatisfiable);
 
 	printf("\tProcesses deadlocked:\t");
    fprintf(logOutputFP, "\tProcesses deadlocked:\t");
 
-	// If less than 2 children are active, there is no true deadlock. 
-	// Release one resource so that a child can continue.
+	//***SCENARIO #0: If less than 2 children are active, there is no true deadlock. 
+	// However, release one resource so that a child can continue.***
 	if (processes < 2 && anyProcessesBlocked == false) {
       printf("\tNONE.\n\n");
       fprintf(logOutputFP, "\tNONE.\n\n");
@@ -635,13 +635,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 			int status;
 
 			printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
-	
-         if (kill(victimPID, SIGTERM) == -1) {
-				printf("ERROR in OSS: kill() function failed.\n\n");
-				exit(-1);
-			}
-
-	 		waitpid(victimPID, &status, 0);
+			terminateChildren(DEADLOCK, victimPID, NULL); 
 
 			// Release all resources from killed/terminated processes.
 			for (i = 0; i < resources; i++) {
@@ -720,28 +714,9 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		int location = victimProcessIndex * resources;
         
 		printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
-	
-		// Kill and terminate victim processes.
-		if (kill(victimPID, SIGTERM) == -1) {
-			printf("ERROR in OSS: kill() function failed.\n\n");
-			exit(-1);
-		}
-	
-		waitpid(victimPID, &status, 0);
-
-		// Release all resources from killed/terminated processes.
-		for (i = 0; i < resources; i++) {
-			requestMatrix[location] = 0;
-			allocationVector[i] += allocationMatrix[location + i];
-			allocationMatrix[location + i] = 0;
-			requestMatrix[location + i] = 0;   
-		}
-  
-		for (i = 0; i < PROCESS_COUNT; i++) {
-			processTable[i].blocked = 0;
-		}
-
-		removeFromQueue(queue, victimPID);
+		terminateChildren(DEADLOCK, victimPID, NULL);
+		releaseResourcesFromTerminatedChildren(requestMatrix, allocationMatrix, allocationVector, resources, location); 
+		
 		removeFromProcessTable(victimPID);
 
 		return true;
@@ -778,28 +753,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 				break;
 			}
 		}
+
 		printEventMessage(DEADLOCK_TERMINATION, victimPID, -1, victimProcessIndex, false);
-	
-      // Kill and terminate victim processes.
-      if (kill(victimPID, SIGTERM) == -1) {
-         printf("ERROR in OSS: kill() function failed.\n\n");
-         exit(-1);
-      }
-
-      waitpid(victimPID, &status, 0);
-
-      // Release all resources from killed/terminated processes.
-      for (i = 0; i < resources; i++) {
-         requestMatrix[location] = 0;
-         allocationVector[i] += allocationMatrix[location + i];
-         allocationMatrix[location + i] = 0;
-         requestMatrix[location + i] = 0;
-      }
-
-      for (i = 0; i < PROCESS_COUNT; i++) {
-         processTable[i].blocked = 0;
-      }
-
+		terminateChildren(DEADLOCK, victimPID, NULL);	
+		releaseResourcesFromTerminatedChildren(requestMatrix, allocationMatrix, allocationVector, resources, location);
+      
 		return true;
 	}
 
@@ -808,6 +766,43 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	fprintf(logOutputFP, "\tNONE.\n\n");
 
 	return false;	
+}
+
+void initializeWorkAndFinishVectors(int *work, bool *finish, int *allocationVector, int resources) {
+	int i, p;
+
+	// Initialize 'work' vector to hold currently available resources.
+   for (i = 0; i < resources; i++) {
+      work[i] = allocationVector[i];
+   }
+
+   // Initialize 'finish' vector. No processes can finish at first, and free slots remain 'true' for algorithm to work properly.
+   for (p = 0; p < PROCESS_COUNT; p++) {
+      if (processTable[p].occupied == 0) {
+         finish[p] = true;
+      }
+      else {
+         finish[p] = false;
+      }
+   }
+}
+
+void analyzeBlockedProcesses(int *requestMatrix, int *work, int resources, bool *anyProcessesBlocked, bool *anyBlockedSatisfiable) {
+	*anyProcessesBlocked = false;
+	*anyBlockedSatisfiable = false;	
+	int p;
+
+	// Check if at least two processes are blocked.
+   for (p = 0; p < PROCESS_COUNT; p++) {
+      if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
+         *anyProcessesBlocked = true;
+
+         if (canRequestBeFulfilled(requestMatrix, work, p, resources) == true) {
+            *anyBlockedSatisfiable = true;
+            return;
+         }
+      }
+   }
 }
 
 // Checks if there exists an unblocked process.
@@ -826,12 +821,12 @@ bool processesCanBeFulfilled(int *requestMatrix, int *allocationVector, int inde
 
 
 // Determines whether a resource type request can be granted for a child.
-bool canRequestBeFulfilled(int *requestMatrix, int *allocationVector, int processIndex, int resources) {
+bool canRequestBeFulfilled(int *requestMatrix, int *work, int processIndex, int resources) {
    int location = processIndex * resources;
    int i;
 
    for (i = 0; i < resources; i++) {
-      if (requestMatrix[location + i] > allocationVector[i]) {
+      if (requestMatrix[location + i] > work[i]) {
 	 		return false;
 		}
    }
@@ -839,48 +834,17 @@ bool canRequestBeFulfilled(int *requestMatrix, int *allocationVector, int proces
    return true;
 }
 
-void printResourceTable(int matrix[]) {
-   printf("OSS: Outputting resource table:\n");
-   printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
-   printf("Resource table:\n");
-   printf("\t R0\t R1\t R2\t R3\t R4\n");
-   
-   int i, j, k;
-
-   for (i = 0; i < 20; i++) {
-      printf("P%d\t ", i);
-
-      for (j = 0; j < 5; j++) {
-         k = (5 * i) + j;
-	 
-	 printf("%d\t ", matrix[k]);
-      }
-      printf("\n");
+void releaseResourcesFromTerminatedChildren(int *requestMatrix, int *allocationMatrix, int *allocationVector, int resources, int location) {
+   int i, p;
+	for (i = 0; i < resources; i++) {
+      allocationVector[i] += allocationMatrix[location + i];
+      allocationMatrix[location + i] = 0;
+      requestMatrix[location + i] = 0;
    }
-   printf("\n\n");
 
-   printResourceTableToLogfile(matrix);
-}
-
-void printResourceTableToLogfile(int matrix[]) {
-   fprintf(logOutputFP, "OSS: Outputting resource table:\n");
-   fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
-   fprintf(logOutputFP, "Resource table:\n");
-   fprintf(logOutputFP, "\t R0\t R1\t R2\t R3\t R4\n");
-
-   int i, j, k;
-
-   for (i = 0; i < 20; i++) {
-      fprintf(logOutputFP, "P%d\t ", i);
-
-      for (j = 0; j < 5; j++) {
-         k = (5 * i) + j;
-
-         fprintf(logOutputFP, "%d\t ", matrix[k]);
-      }
-      fprintf(logOutputFP, "\n");
+   for (p = 0; p < PROCESS_COUNT; p++) {
+      processTable[p].blocked = 0;
    }
-   fprintf(logOutputFP, "\n\n");
 }
 
 /********************************************MESSAGE PASSING OPERATIONS************************************************/
@@ -1036,10 +1000,31 @@ void terminateChildren (int termination, int pidToTerminate, int * childrenActiv
          else {
             removeFromProcessTable(pidToTerminate);
             processesTerminatedGracefully++;
-				printf("childrenActive (before): %d\n", *childrenActive);
             (*childrenActive)--;
-				printf("childrenActive (after): %d\n", *childrenActive);
             break;
+         }
+      }
+   }
+	
+	else if (termination == DEADLOCK) {
+      if (kill(pidToTerminate, SIGTERM) == -1) {
+         printf("ERROR in OSS: kill() function failed.\n\n");
+         exit(-1);
+      }
+      waitpid(pidToTerminate, &status, 0);
+	}
+
+	else if (termination == END_PROGRAM) {
+		int i;
+	   for (i = 0; i < 20; i++) {
+         if (processTable[i].occupied == 1) {
+            pid_t pid = processTable[i].processID;
+
+            if (pid > 0) {
+               kill(processTable[i].processID, SIGTERM);
+
+               printf("Signal SIGTERM was sent to PID %d\n", pid);
+            }
          }
       }
    }
@@ -1085,43 +1070,24 @@ void removeMessageQueue() {
 // Gracefully terminates program after a function error or use of CTRL + C.
 void periodicallyTerminateProgram(int signal) {
    printf("\n\n\nNow terminating all child processes...\n");
-
-   int i;
-   for (i = 0; i < 20; i++) {
-      if (processTable[i].occupied == 1) {
-         pid_t processID = processTable[i].processID;
-
-         if (processID > 0) {
-            kill(processTable[i].processID, SIGTERM);
-
-            printf("Signal SIGTERM was sent to PID %d\n", processID);
-         }
-      }
-   }
+	terminateChildren(END_PROGRAM, -1, NULL);
    printf("Child process termination complete.\n\n");
 
-   
    // Shared memory operations.
    printf("Now freeing shared memory...\n");
    detachAndClearSharedMemory();
    printf("Shared memory detachment and deletion complete.\n\n");
    
-
    // Queue removal operations.
    printf("Now deleting the message queue...\n");
    removeMessageQueue();
    printf("Message queue removal and deletion complete.\n\n");
  
-
    // Graceful termination.
    printf("Now exiting program...\n\n");
 
    printStatistics();
 
-
    exit(0);
 }
-
-
-
 
