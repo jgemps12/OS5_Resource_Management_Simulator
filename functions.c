@@ -514,14 +514,14 @@ void updateAllocationVector(int row, int *allocationMatrix, int *allocationVecto
 //	 printf("allocationMatrix[%d] (AFTER): %d\n", i, allocationMatrix[element/*(5 * location) + i*/]);
          printf("Allocation vector (AFTER): %d\n\n", allocationVector[i]);
 
-	 sleep(1);
+
 	 // printf("Allocation vector:\n");
 	// printf("%d\t", allocationVector[i]);
 	 element++;
       }
    }
    printResourceTable(allocationMatrix);
-   sleep(2);
+
 }
 
 
@@ -574,27 +574,23 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	} 
 
 	// Initialize 'finish' vector. No processes can finish at first, and free slots remain 'true' for algorithm to work properly.
-	for (i = 0; i < processes; i++) {
+	for (i = 0; i < PROCESS_COUNT; i++) {
 		if (processTable[i].occupied == 0) {
 			finish[i] = true;
 		}
 		else {
 			finish[i] = false;
 		}
+		p++;
 	}
 
 	// Check if at least two processes are blocked.
 	bool anyProcessesBlocked = false;
 	bool anyBlockedSatisfiable = false;
 	int blockedCount = 0;
-	int processesInSystem = 0;
 
-	for (p = 0; p < processes; p++) {
-		if (processTable[p].occupied == 1) {
-			processesInSystem++;
-		}
-
-		if (processTable[p].occupied == 1 && processTable[p].blocked == 1 && processesInSystem >= 2) {
+	for (p = 0; p < PROCESS_COUNT; p++) {
+		if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
 			anyProcessesBlocked = true;
 
 			if (canRequestBeFulfilled(requestMatrix, work, p, resources) == true) {
@@ -609,7 +605,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 
 	// If less than 2 children are active, there is no true deadlock. 
 	// Release one resource so that a child can continue.
-	if (processesInSystem < 2) {
+	if (processes < 2 && anyProcessesBlocked == false) {
       printf("\tNONE.\n\n");
       fprintf(logOutputFP, "\tNONE.\n\n");
 		releaseOneResource(requestMatrix, allocationMatrix, allocationVector, queue);
@@ -622,15 +618,17 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		int victimProcessIndex = -1;
 		//int maxProcessTableRow = processes;
 
-		// Find a blocked process to kill.
-		for (p = 0; p < processes; p++) {
-			printf("p = %d\t processes = %d\n", p, processes);
+		// Print all deadlocked processes.
+		for (p = 0; p < PROCESS_COUNT; p++) {
 			if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
-				printf("P%d\t", p);
-         	fprintf(logOutputFP, "P%d\t", p);
+            printf("P%d\t", p);
+            fprintf(logOutputFP, "P%d\t", p);
+			}
+		}
+		// Find a blocked process to kill.
+		for (p = 0; p < PROCESS_COUNT; p++) {
+			if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
 				victimProcessIndex = p;
-				sleep(1);
-
 				break;
 			}
 		}
@@ -653,14 +651,14 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 			// Release all resources from killed/terminated processes.
 			for (i = 0; i < resources; i++) {
 				int matrixIndex = (victimProcessIndex * resources) + i;
-				sleep(1);
+			
 	    		allocationVector[i] += allocationMatrix[matrixIndex];
 	    		allocationMatrix[matrixIndex] = 0;
 				requestMatrix[matrixIndex] = 0;
 			}
 
 			// Unblock all processes.
-			for (i = 0; i < processes; i++) {
+			for (i = 0; i < PROCESS_COUNT; i++) {
 				processTable[i].blocked = 0;
 			}
 		
@@ -670,7 +668,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
   			removeFromProcessTable(victimPID);    
 
 			printProcessTable();
-			sleep(2);
+		
 
 			return true;
 		}
@@ -683,9 +681,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	while (progress == true) {
 		progress = false;
 		
-		for (p = 0; p < processes; p++) {
-			printf("finish[%d] = %d\n", p, finish[p]);
-
+		for (p = 0; p < PROCESS_COUNT; p++) {
 			if (finish[p] == true) {
 				continue;
 			}
@@ -695,13 +691,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 				finish[p] = true;
 				continue;
 			}
-
 			
 			int location = p * resources;
 			bool processCanFinish = true;
 
 			for (i = 0; i < resources; i++) {
-				printf("requestMatrix[%d + %d] = %d\t work[%d] = %d\n", location, i, requestMatrix[location + i], i, work[i]);
 				if (requestMatrix[location + i] > work[i]) {
 					processCanFinish = false;
 					break;
@@ -720,7 +714,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 	}
 
 	// A deadlock exists if a process is not finished. If deadlock exists, return true.
-	for (p = 0; p < processes; p++) { 
+	for (p = 0; p < PROCESS_COUNT; p++) { 
 		if (finish[p] == false && processTable[p].occupied == 1) {
 			printf("P%d\t", p);
 			fprintf(logOutputFP, "P%d\t", p);
@@ -756,7 +750,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 			requestMatrix[location + i] = 0;   
 		}
   
-		for (i = 0; i < processes; i++) {
+		for (i = 0; i < PROCESS_COUNT; i++) {
 			processTable[i].blocked = 0;
 		}
 
@@ -783,18 +777,22 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
 		if (processTable[i].blocked == 1) {
 			blockedProcesses++;
 		}
-		printf("processes: %d\t blockedProcesses: %d\n", processes, blockedProcesses);
 	}
 
 	if (processes == blockedProcesses) {
+		// Print all deadlocked processes.
 		for (i = 0; i < PROCESS_COUNT; i++) {
 			if (processTable[i].blocked == 1) {
 				printf("P%d\t", i);
-         	fprintf(logOutputFP, "P%d\t", i);
+            fprintf(logOutputFP, "P%d\t", i);
+			}
+		}
 
+		// Find a process to kill.
+		for (i = 0; i < PROCESS_COUNT; i++) {
+			if (processTable[i].blocked == 1) {
 				victimProcessIndex = i;
 				victimPID = processTable[i].processID;
-
 				break;
 			}
 		}
@@ -819,7 +817,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
          requestMatrix[location + i] = 0;
       }
 
-      for (i = 0; i < processes; i++) {
+      for (i = 0; i < PROCESS_COUNT; i++) {
          processTable[i].blocked = 0;
       }
 
@@ -855,8 +853,6 @@ bool canRequestBeFulfilled(int *requestMatrix, int *allocationVector, int proces
    int i;
 
    for (i = 0; i < resources; i++) {
-		printf("requestMatrix[%d] = %d\t\t allocationVector[%d] = %d\n", location + i, requestMatrix[location + i], i, allocationVector[i]);
-//		sleep(1);
       if (requestMatrix[location + i] > allocationVector[i]) {
 	 		return false;
 		}
@@ -909,6 +905,137 @@ void printResourceTableToLogfile(int matrix[]) {
    fprintf(logOutputFP, "\n\n");
 }
 
+/*
+void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
+   int i;
+   int j = 5 * child;
+   bool isAllocationMatrixRowEmpty = true;
+
+   printf("---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
+   printf("\tResources released: ");
+   fprintf(logOutputFP, "---OSS: Process P%d (PID %ld) TERMINATED.---\n", child, processID);
+   fprintf(logOutputFP, "\tResources released: ");
+
+
+   // Determine whether to print resource type quantities or 'NONE' for released resources.
+   for (i = 0; i < 5; i++) {
+      if (allocationMatrix[j] > 0) {
+         isAllocationMatrixRowEmpty = false;
+
+         break;
+      }
+      j++;
+   }
+
+   j = 5 * child;
+
+   // If no resources were released before termination.
+   if (isAllocationMatrixRowEmpty == true) {
+      printf("NONE\n");
+      fprintf(logOutputFP, "NONE\n");
+   }
+
+   // If at least one resource type was released before termination.
+   for (i = 0; i < 5; i++) {
+      if (allocationMatrix[j] > 0) {
+         printf("P%d: %-5d", i, allocationMatrix[j]);
+         fprintf(logOutputFP, "P%d: %-5d", i, allocationMatrix[j]);
+      }
+      j++;
+   }
+
+   printf("\n");
+   fprintf(logOutputFP, "\n");
+}
+*/
+/********************************************MESSAGE PASSING OPERATIONS************************************************/
+
+// Perform msgsnd() operations.
+void sendMessageToUSER() {
+   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
+      if (errno == ENOMSG) {
+         // Keep running oss.c.
+      }
+      else {
+         printf("ERROR in oss.c: Problem with msgsnd() function.\n");
+
+         periodicallyTerminateProgram(-1);
+      }
+   }
+}
+
+// Perform nonblocking msgrcv() operations.
+void receiveMessageFromUSER(int i) {
+   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), 0, IPC_NOWAIT) == -1) {
+      if (errno == ENOMSG) {
+         // Keep running oss.c
+      }
+      else {
+         printf("ERROR in oss.c: Problem with msgrcv() function.\n");
+         
+         periodicallyTerminateProgram(-1);
+      }
+   }
+}
+
+
+
+/************************************************OUTPUT OPERATIONS****************************************************/
+// Displays a help message if user enters './oss -h'.
+void printHelpMessage() {
+   printf("\n\n\nThis program displays information about child and parent processes, including:\n");
+   printf("\t1.) A Process Control Block (PCB) table with child process entry information.\n");
+   printf("\t2.) Messages on the console and a logfile related to process scheduling.\n");
+
+
+   printf("\n\nTo execute this program, type './oss', then type in any combination of options:\n\n\n");
+   printf("Option:                       What to enter after option:               Default values (if argu-      Description:\n");
+   printf("                                                                         ment is not entered):\n");
+   printf("  -h                           > nothing.                                 > (not applicable)           > Displays this help menu.\n"); 
+   printf("  -n [proc]                    > an integer between 1 and 10.             > defaults to 1.             > Runs a total # of processes.\n");
+   printf("  -s [simul]                   > an integer smaller than '-n [proc]'.     > defaults to 1.             > Runs a max # of processes simultaneously.\n");
+   printf("  -i [intervalInMS             > an integer between 1 and 1000.           > defaults to 500.           > Runs a new process every [interval\n");
+   printf("       ToLaunchChildren]                                                                                  inMSToLaunchChildren] milliseconds.\n");
+   printf("  -f [logfile]                 > a file's basename.                       > defaults to 'logfile'      > Stores output relating to parent and\n");
+   printf("                                                                                                          child processes.\n\n"); 
+
+   printf("For example, typing './oss -n 6 -s 4 -i 600 -f storage' will run:\n");
+   printf("\t1.) a total of 6 processes.\n");
+   printf("\t2.) a maximum of 4 processes simultaneously.\n");
+   printf("\t3.) a new process every 600 milliseconds.\n");
+   printf("\t4.) while storing message statuses inside a file called 'storage.txt'.\n\n\n");
+
+   exit(EXIT_SUCCESS);
+}
+
+void printEventMessage(int event, int pid, int resource, int childIndex, bool requestGranted) {
+	if (event == GENERATE_PROCESS) {
+		printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", pid, systemClockSeconds, systemClockNano);
+      fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", pid, systemClockSeconds, systemClockNano);
+	}
+
+	else if (event == REQUEST_RESOURCE) {
+	   printf("OSS: Detected Process P%d (PID %d) REQUESTING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+      fprintf(logOutputFP, "OSS: Detected Process P%d (PID %d) REQUESTING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+
+		if (requestGranted == true) {
+			printf("OSS: Granting P%d (PID %d)'s request for R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+			fprintf(logOutputFP, "OSS: Granting P%d (PID %d)'s request for R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+		}
+
+		else {
+			printf("OSS: No instances of R%d are available. ", resource);
+         printf("P%d (PID %d) added to wait queue at time %d:%lld.\n", childIndex, pid, systemClockSeconds, systemClockNano);
+         fprintf(logOutputFP, "OSS: No instances of R%d are available. ", resource);
+         fprintf(logOutputFP, "P%d (PID %d) added to wait queue at time %d:%lld.\n", childIndex, pid, systemClockSeconds, systemClockNano);	
+		}
+	}
+
+	else if (event == RELEASE_RESOURCE) {
+		printf("OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+      fprintf(logOutputFP, "OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
+   }
+}
 
 void printChildTerminationMessage(int *allocationMatrix, int child, long int processID) {
    int i;
@@ -951,69 +1078,6 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
    printf("\n");
    fprintf(logOutputFP, "\n");
 }
-
-/********************************************MESSAGE PASSING OPERATIONS************************************************/
-
-// Perform msgsnd() operations.
-void sendMessageToUSER() {
-   if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
-      if (errno == ENOMSG) {
-         // Keep running oss.c.
-      }
-      else {
-         printf("ERROR in oss.c: Problem with msgsnd() function.\n");
-
-         periodicallyTerminateProgram(-1);
-      }
-   }
-}
-
-// Perform nonblocking msgrcv() operations.
-void receiveMessageFromUSER(int i) {
-   if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), 0, IPC_NOWAIT) == -1) {
-      if (errno == ENOMSG) {
-         // Keep running oss.c
-      }
-      else {
-         printf("ERROR in oss.c: Problem with msgrcv() function.\n");
-         
-         periodicallyTerminateProgram(-1);
-      }
-   }
-}
-
-
-
-/***************************************************USER GUIDANCE******************************************************/
-
-// Displays a help message if user enters './oss -h'.
-void printHelpMessage() {
-   printf("\n\n\nThis program displays information about child and parent processes, including:\n");
-   printf("\t1.) A Process Control Block (PCB) table with child process entry information.\n");
-   printf("\t2.) Messages on the console and a logfile related to process scheduling.\n");
-
-
-   printf("\n\nTo execute this program, type './oss', then type in any combination of options:\n\n\n");
-   printf("Option:                       What to enter after option:               Default values (if argu-      Description:\n");
-   printf("                                                                         ment is not entered):\n");
-   printf("  -h                           > nothing.                                 > (not applicable)           > Displays this help menu.\n"); 
-   printf("  -n [proc]                    > an integer between 1 and 10.             > defaults to 1.             > Runs a total # of processes.\n");
-   printf("  -s [simul]                   > an integer smaller than '-n [proc]'.     > defaults to 1.             > Runs a max # of processes simultaneously.\n");
-   printf("  -i [intervalInMS             > an integer between 1 and 1000.           > defaults to 500.           > Runs a new process every [interval\n");
-   printf("       ToLaunchChildren]                                                                                  inMSToLaunchChildren] milliseconds.\n");
-   printf("  -f [logfile]                 > a file's basename.                       > defaults to 'logfile'      > Stores output relating to parent and\n");
-   printf("                                                                                                          child processes.\n\n"); 
-
-   printf("For example, typing './oss -n 6 -s 4 -i 600 -f storage' will run:\n");
-   printf("\t1.) a total of 6 processes.\n");
-   printf("\t2.) a maximum of 4 processes simultaneously.\n");
-   printf("\t3.) a new process every 600 milliseconds.\n");
-   printf("\t4.) while storing message statuses inside a file called 'storage.txt'.\n\n\n");
-
-   exit(EXIT_SUCCESS);
-}
-
-
 
 /***********************************************PROGRAM TERMINATION***************************************************/
 void printStatistics () {

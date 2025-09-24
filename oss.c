@@ -177,7 +177,6 @@ int main(int argc, char** argv) {
     int blocked = 0;
     int numberOfBlockedChildren = 0;
     long int boundB = 50 * oneMillionNanoseconds;                     // Maximum # of nanoseconds between process requests/releases.	    
-    int consecutiveResourceRequests = 0;                              // Counts how many times the same resource type has been granted. 
     int halfSecondTablePrintouts = 0;											 // Run deadlock algorithm after 2 printouts (or 1 sec).
     
     // Initializes shared memory segments.
@@ -200,18 +199,18 @@ int main(int argc, char** argv) {
     signal(SIGINT, periodicallyTerminateProgram);
     signal(SIGTERM, periodicallyTerminateProgram);
     
-    // Resources allocated to each process.
+    // **ALLOCATION MATRIX**  --> Resources allocated to each process.
     int allocationMatrix[100];
     initializeMatrix(allocationMatrix);
     
-    // Resources requested by each process.
+    // **REQUEST MATRIX**     --> Resources requested by each process.
     int requestMatrix[100];
     initializeMatrix(requestMatrix);
     
-    // # of TOTAL resources available for each resource type.
+    // **RESOURCE VECTOR**    --> # of TOTAL resources available for each resource type.
     int resourceVector[5] = {10, 10, 10, 10, 10};
     
-    // # of resources available to allocate for each resource type.
+    // **ALLOCATION VECTOR**  --> # of resources available to allocate for each resource type.
     int allocationVector[5] = {10, 10, 10, 10, 10};
     
     while (processesFinished == false) {
@@ -252,9 +251,6 @@ int main(int argc, char** argv) {
                     if (deadlock == true) {
                         processesTerminatedByDeadlock++;
                         childrenActive--;
-							printf("sendBuffer.processID: %ld\t receiveBuffer.processID: %ld\n", sendBuffer.processID, receiveBuffer.processID);
-
-
                         continue;
                     }		
                     
@@ -297,19 +293,16 @@ int main(int argc, char** argv) {
                 if (addToProcessTable(processID) == -1) {
                     printf("ERROR in oss.c: Process Control Block (PCB) table is full.\n");
                     printf("Cannot add PID %d\n", processID);
-                }
-            
-                printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);   
-                fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", processID, systemClockSeconds, systemClockNano);
-            }
+                } 
+
+			       printEventMessage(GENERATE_PROCESS, processID, -1, -1, false);
+			   }
         }
     
         // For-loop acts as a Round-Robin scheduling mechanism.  
         for (nextChild = minChildIndex; nextChild <= maxChildIndex; nextChild++) {
             minChildIndex = findMinimumLoopIndex();
             maxChildIndex = findMaximumLoopIndex();
-            
-             printf("nextChild: %d\t minChildIndex: %d\t maxChildIndex: %d\t childrenActive: %d\n", nextChild, minChildIndex, maxChildIndex, childrenActive);
             
             // printf("currentChild: %d\n", currentChild);
             totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
@@ -342,8 +335,6 @@ int main(int argc, char** argv) {
                 if (deadlock == true) {
                     processesTerminatedByDeadlock++;
                     childrenActive--;     
-						printf("sendBuffer.processID: %ld\t receiveBuffer.processID (AFTER FOR): %ld\n\n", sendBuffer.processID, receiveBuffer.processID);
-
                     continue;
                 }
                 
@@ -387,25 +378,16 @@ int main(int argc, char** argv) {
                 
                 // Prints resource type that a process has requested.
                 if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && nextChild >= 0) {
-                    printf("OSS: Detected Process P%d (PID %ld) REQUESTING R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                    printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                    fprintf(logOutputFP, "OSS: Detected Process P%d (PID %ld) REQUESTING R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                    fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                    
+//						  printEventMessage(REQUEST_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, REQUEST);
                     
                     int vectorIndex = receiveBuffer.resourceType;
                     
                     // If the allocation vector shows that space is available for a resource type, grant it to a child.	       
-                    if (allocationVector[vectorIndex] > 0) {
-                        int i; 
-                        printf("OSS: Granting P%d (PID %ld)'s request for R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                        printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                        fprintf(logOutputFP, "OSS: Granting P%d (PID %ld)'s request for R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                        fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                        
+                    if (allocationVector[vectorIndex] > 0) { 
+                        printEventMessage(REQUEST_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, true);
                         processTable[nextChild].request[receiveBuffer.resourceType] = 0;
-                        
+               
                         updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, REQUEST);
                         updateAllocationVector(receiveBuffer.resourceType, allocationVector, REQUEST);
                         requestsGrantedImmediately++;
@@ -414,12 +396,7 @@ int main(int argc, char** argv) {
                     // If space is unavailable for a resource type according to allocation vector.
                     // Reject resource type, send child to wait queue, and make it sleep until it is finally available.
                     else {
-                        printf("OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
-                        printf("P%d (PID %ld) added to wait queue at time %d:%lld.\n", nextChild, receiveBuffer.processID, systemClockSeconds, systemClockNano);
-                        fprintf(logOutputFP, "OSS: No instances of R%d are available. ", receiveBuffer.resourceType);
-                        fprintf(logOutputFP, "P%d (PID %ld) added to wait queue ", nextChild, receiveBuffer.processID);
-                        fprintf(logOutputFP, "at time %d:%lld.\n", systemClockSeconds, systemClockNano);
-                        
+                        printEventMessage(REQUEST_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                         processTable[nextChild].request[receiveBuffer.resourceType] = 1;
                         
                         // Only add process to wait queue if it is not already in it.
@@ -430,24 +407,13 @@ int main(int argc, char** argv) {
                         processTable[nextChild].request[receiveBuffer.resourceType] = 1;
                         processTable[nextChild].blocked = 1;
                         printProcessTable();
-                        
-                        // If a process holds ALL 10 of a specific resource type, automatically release that resource.
-//                        releaseOneResource(requestMatrix, allocationMatrix, allocationVector, resourceQueue);
-                        
-                        for (i = 0; i < 5; i++) {
-                             printf("Allocation vector[%d]: %d\n", i, allocationVector[i]);
-                        }
                     }
                 }
                 int matrixIndex = 5 * nextChild + receiveBuffer.resourceType;
                 
                 // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
                 if (receiveBuffer.selection == RELEASE && allocationMatrix[matrixIndex] > 0) {
-                    printf("OSS: Process P%d (PID %ld) is RELEASING R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                    printf("at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                    fprintf(logOutputFP, "OSS: Process P%d (PID %ld) is RELEASING R%d ", nextChild, receiveBuffer.processID, receiveBuffer.resourceType);
-                    fprintf(logOutputFP, "at time %d:%lld.\n",  systemClockSeconds, systemClockNano);
-                     
+						  printEventMessage(RELEASE_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, RELEASE);
                     updateAllocationMatrix(nextChild, receiveBuffer.resourceType, allocationMatrix, RELEASE);
                     updateAllocationVector(receiveBuffer.resourceType, allocationVector, RELEASE);
@@ -455,7 +421,7 @@ int main(int argc, char** argv) {
                     
                 // If the user process sends back a negative number for a time quantum, end child process.
                 if (receiveBuffer.selection == TERMINATE_PROCESS) {
-                    int i;
+               //     int i;
                     
                     int status, pid;
                     
@@ -494,14 +460,9 @@ int main(int argc, char** argv) {
    					  }
                
                     receiveBuffer.selection = REQUEST;
-                    
-                  
-                    
                     sendBuffer.processID = processTable[nextChild].processID;
                     sendBuffer.selection = receiveBuffer.selection;
                     sendBuffer.resourceType = receiveBuffer.resourceType;
-                    
-                 
                    
                     // Remove process ID from all wait queues after it terminates.
                     for (i = 0; i < QUEUE_COUNT; i++) {
