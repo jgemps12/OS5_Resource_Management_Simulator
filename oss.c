@@ -83,7 +83,6 @@ long int lastTablePrintNano = 0;
 long int systemClockIncrement = oneMillionNanoseconds;
 
 // For determining the child process order in which messages are to be sent.
-int currentChildIndex = 0;
 int minChildIndex = 0;
 int maxChildIndex = 0;
 
@@ -171,27 +170,19 @@ int main(int argc, char** argv) {
     }    
     
     bool processesFinished = false;                                  // Determines whether the program should end.
-    bool deadlock = false;
+    bool deadlock = false;															// Did deadlock algorithm find a deadlock.
     int childrenActive = 0;                                          // # of children running simultaneously (not to be confused with 'proc').
     int totalChildrenLaunched = 0;                                   // # of children launched so far (not to be confused with 'simul').  
-    //int currentChild = 0;
     int nextChild = 0;
     int blocked = 0;
     int numberOfBlockedChildren = 0;
     long int boundB = 50 * oneMillionNanoseconds;                     // Maximum # of nanoseconds between process requests/releases.	    
     int consecutiveResourceRequests = 0;                              // Counts how many times the same resource type has been granted. 
-    int halfSecondTablePrintouts = 0;
+    int halfSecondTablePrintouts = 0;											 // Run deadlock algorithm after 2 printouts (or 1 sec).
     
     // Initializes shared memory segments.
     *secondsShared = 0;
     *nanosecondsShared = 0;
-    
-    // Track real-life time to determine when to stop launching processes.
-    long int realSeconds;
-    long int realMicroseconds;
-    struct timeval realStartTime;
-    struct timeval realCurrentTime;
-    gettimeofday(&realStartTime, NULL);
     
     // Initializes each queue for multilevel feedback scheduling.
     MultiLevelQueue resourceQueue[QUEUE_COUNT];
@@ -232,21 +223,9 @@ int main(int argc, char** argv) {
             while (1) {
                 totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
                 numberOfBlockedChildren = 0;
-                
-                gettimeofday(&realCurrentTime, NULL);        
-                
-                // Determine when program should stop launching processes.
-                realSeconds = realCurrentTime.tv_sec - realStartTime.tv_sec;
-                realMicroseconds = realCurrentTime.tv_usec - realStartTime.tv_usec;	   
-                
-                
+                          
                 if (totalChildrenLaunched == proc) {
                     break;
-                }
-                
-                if (realMicroseconds < 0) {
-                    realSeconds--;
-                    realMicroseconds += 1000000;
                 }
                 
                 // Prints process table every half second of simulated system time.
@@ -254,7 +233,7 @@ int main(int argc, char** argv) {
                 long long int actualPrintoutDifference = systemNanoOnly - lastPrintoutTime;
                 
                 if (actualPrintoutDifference >= halfBillionNanoseconds) {
-                printProcessTable();
+                    printProcessTable();
                 
                     lastTablePrintSeconds = systemClockSeconds;
                     lastTablePrintNano = systemClockNano;
@@ -267,18 +246,15 @@ int main(int argc, char** argv) {
                 }
                 
                 // Run deadlock detection algorithm after 1 second of simulated system time.
-                
                 if (halfSecondTablePrintouts == 2) {
                     deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
-                    
-                    printf("childrenActive (DEADLOCK before 'for'): %d\n\n", childrenActive);
-                    sleep(1);
-                    
+                     
                     if (deadlock == true) {
                         processesTerminatedByDeadlock++;
                         childrenActive--;
-                        printf("childrenActive (DEADLOCK before 'for'): %d\n\n", childrenActive);
-                        sleep(1);
+							printf("sendBuffer.processID: %ld\t receiveBuffer.processID: %ld\n", sendBuffer.processID, receiveBuffer.processID);
+
+
                         continue;
                     }		
                     
@@ -305,7 +281,7 @@ int main(int argc, char** argv) {
             }
         
             // Work with and runs child processes. 
-            if (processID == 0/*  && realSeconds < 5*/) {
+            if (processID == 0) {
                 execl("./worker", "worker.c", NULL);
                 
                 printf("ERROR in oss.c: the execl() function has failed. Terminating program.\n\n");
@@ -313,15 +289,10 @@ int main(int argc, char** argv) {
             }
         
             // Work with parent process. Send a message to a running child process.
-            if (processID > 0 /* && realSeconds < 5*/) {
+            if (processID > 0) {
                 childrenActive++;
                 totalChildrenLaunched++;
-                
-                // Updates real time for ceasing process generation.
-                gettimeofday(&realCurrentTime, NULL);
-                realSeconds = realCurrentTime.tv_sec - realStartTime.tv_sec;
-                realMicroseconds = realCurrentTime.tv_usec - realStartTime.tv_usec;
-                
+                 
                 // PCB operations. Adding a process to the Process Table and queue.
                 if (addToProcessTable(processID) == -1) {
                     printf("ERROR in oss.c: Process Control Block (PCB) table is full.\n");
@@ -338,7 +309,7 @@ int main(int argc, char** argv) {
             minChildIndex = findMinimumLoopIndex();
             maxChildIndex = findMaximumLoopIndex();
             
-            // printf("nextChild: %d\n", nextChild);
+             printf("nextChild: %d\t minChildIndex: %d\t maxChildIndex: %d\t childrenActive: %d\n", nextChild, minChildIndex, maxChildIndex, childrenActive);
             
             // printf("currentChild: %d\n", currentChild);
             totalRequestsGranted = requestsGrantedImmediately + requestsGrantedAfterWaiting;
@@ -360,22 +331,19 @@ int main(int argc, char** argv) {
             }
             
             // Prints resource table every 20 granted requests.
-            if (totalRequestsGranted > 0 && totalRequestsGranted % 5 == 0) {
+            if (totalRequestsGranted > 0 && totalRequestsGranted % 20 == 0) {
                 printResourceTable(allocationMatrix);
             }
             
             // Run deadlock detection algorithm after second of simulated system time. 
             if (halfSecondTablePrintouts == 2) {
                 deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
-                printf("childrenActive (DEADLOCK during 'for'): %d\n\n", childrenActive);
-                sleep(1);
-                
+               
                 if (deadlock == true) {
                     processesTerminatedByDeadlock++;
-                    childrenActive--;
-                    printf("childrenActive (DEADLOCK during 'for'): %d\n\n", childrenActive);
-                    sleep(1);
-                    
+                    childrenActive--;     
+						printf("sendBuffer.processID: %ld\t receiveBuffer.processID (AFTER FOR): %ld\n\n", sendBuffer.processID, receiveBuffer.processID);
+
                     continue;
                 }
                 
@@ -389,11 +357,10 @@ int main(int argc, char** argv) {
             if (processTable[nextChild].blocked == 1) {
                 continue;
             }
-            // Increment based on 0 to B bound.
-            //  incrementClock(&systemClockSeconds, &systemClockNano, determineBoundB(boundB));	 
-            
+         
             if (processTable[nextChild].blocked == 1) {
                 numberOfBlockedChildren++;
+                
                 if (numberOfBlockedChildren == childrenActive) {
                     numberOfBlockedChildren = 0;
                     break;
@@ -417,7 +384,6 @@ int main(int argc, char** argv) {
             
                 // Another buffer stores info about what the parent receives from a child.
                 receiveBuffer.processID = processTable[nextChild].processID;
-                printf("\n\nnextChild: %d\t receiveBuffer.processID: %ld\n", nextChild, receiveBuffer.processID);
                 
                 // Prints resource type that a process has requested.
                 if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && nextChild >= 0) {
@@ -466,12 +432,11 @@ int main(int argc, char** argv) {
                         printProcessTable();
                         
                         // If a process holds ALL 10 of a specific resource type, automatically release that resource.
-                    //    releaseOneResource(requestMatrix, allocationMatrix, allocationVector, resourceQueue);
+//                        releaseOneResource(requestMatrix, allocationMatrix, allocationVector, resourceQueue);
                         
                         for (i = 0; i < 5; i++) {
                              printf("Allocation vector[%d]: %d\n", i, allocationVector[i]);
                         }
-                        requestsGrantedAfterWaiting++;
                     }
                 }
                 int matrixIndex = 5 * nextChild + receiveBuffer.resourceType;
@@ -530,15 +495,14 @@ int main(int argc, char** argv) {
                
                     receiveBuffer.selection = REQUEST;
                     
-                    printf("childrenActive (GRACEFUL): %d", childrenActive);
-                    sleep(1);
+                  
                     
                     sendBuffer.processID = processTable[nextChild].processID;
                     sendBuffer.selection = receiveBuffer.selection;
                     sendBuffer.resourceType = receiveBuffer.resourceType;
                     
-                    printf("sendBuffer.processID: %ld\t receiveBuffer.processID: %ld\n", sendBuffer.processID, receiveBuffer.processID);
-                    printProcessTable();
+                 
+                   
                     // Remove process ID from all wait queues after it terminates.
                     for (i = 0; i < QUEUE_COUNT; i++) {
                         removeFromQueue(&resourceQueue[i], sendBuffer.processID);
@@ -571,8 +535,8 @@ int main(int argc, char** argv) {
             }
             
             // Keep restarting the loop until it needs to work with a new process.
-            if ((nextChild == childrenActive - 1) && systemNanoOnly < nextLaunchTimeNano) {
-                nextChild = -1;
+            if ((nextChild == maxChildIndex) && systemNanoOnly < nextLaunchTimeNano) {
+                nextChild = minChildIndex - 1;
             }
         } 
     }
