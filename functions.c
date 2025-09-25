@@ -297,10 +297,9 @@ int findMaximumLoopIndex() {
     for (i = PROCESS_COUNT - 1; i >= 0; i--) {
         if (processTable[i].occupied == 1) {
             return i;
+        }
     }
-}
-
-return 0;
+    return 0;
 }
 
 void removeFromProcessTable(pid_t pid) {
@@ -317,7 +316,6 @@ void removeFromProcessTable(pid_t pid) {
                 processTable[i].allocated[j] = 0;
                 processTable[i].request[j] = 0;
             }
-            
             processTable[i].blocked = 0;
             
             break;
