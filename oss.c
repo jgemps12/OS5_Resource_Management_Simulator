@@ -1,5 +1,5 @@
 // The oss.c file works with PARENT processes.
-// It launches a specific number of user processes with user input gathered from the 'getopt()' switch statement. 
+// It launches a specific number of worker processes with worker input gathered from the 'getopt()' switch statement. 
 // This time, processes will acquire and release resources while occassionally undergoing deadlocks.
 // Those deadlocks will be detected and recovered to ensure continuing operation of this system.
 
@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     int opt;
     strcpy(logfileFP, logfile);
     
-    // If user does not input the arguments corresponding to variables below, assign default values.
+    // If worker does not input the arguments corresponding to variables below, assign default values.
     int proc = 1;
     int simul = 1;
     int intervalInMSToLaunchChildren = 500;
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     // Copies the default log file name into shared memory.
     strcpy(logfileFP, "logfile.txt");
     
-    // User option for entering a logfile name.
+    // worker option for entering a logfile name.
     char procName[] = "-n [proc]";
     char simulName[] = "-s [simul]";
     char intervalName[] = "-i [intervalInMSToLaunchChildren]";
@@ -357,7 +357,7 @@ int main(int argc, char** argv) {
             }
             
             if (processTable[nextChild].occupied == 1 && processTable[nextChild].blocked == 0) {	    
-                // Slow down program to prevent race conditions between times in Process Table and those analyzed in user.c.
+                // Slow down program to prevent race conditions between times in Process Table and those analyzed in worker.c.
                 // Also prevents multiple empty Process Tables from printing towards the program's end.
                 int i; 
                 for (i = 0; i < 100000000; i++) {
@@ -365,12 +365,12 @@ int main(int argc, char** argv) {
                 }  
                 
                 // Parent process receives a message from a child process. Output printed to a logfile.
-                receiveMessageFromUSER(nextChild);
+                receiveMessageFromWORKER(nextChild);
                 
                 // Another buffer stores info about what the parent receives from a child.
                 receiveBuffer.processID = processTable[nextChild].processID;
                 
-                // Prints resource type that a process has requested.
+                // Prints resource type that a process has REQUESTED.
                 if (receiveBuffer.selection == REQUEST && receiveBuffer.resourceType >= 0 && nextChild >= 0) {
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, REQUEST);
                     
@@ -403,7 +403,7 @@ int main(int argc, char** argv) {
                 }
                 int matrixIndex = 5 * nextChild + receiveBuffer.resourceType;
                 
-                // If user.c passes back a partial time quantum, send blocked process to BLOCKED queue.
+                // If worker.c wants to RELEASE a resource, then do so.
                 if (receiveBuffer.selection == RELEASE && allocationMatrix[matrixIndex] > 0) {
                     printEventMessage(RELEASE_RESOURCE, receiveBuffer.processID, receiveBuffer.resourceType, nextChild, false);
                     updateRequestMatrix(nextChild, receiveBuffer.resourceType, requestMatrix, RELEASE);
@@ -411,7 +411,7 @@ int main(int argc, char** argv) {
                     updateAllocationVector(receiveBuffer.resourceType, allocationVector, RELEASE);
                 }
                 
-                // If the user process sends back a negative number for a time quantum, end child process.
+                // If the worker wants to TERMINATE A PROCESS, then do so.
                 if (receiveBuffer.selection == TERMINATE_PROCESS) {     
                     int status, pid;
                     
@@ -459,7 +459,7 @@ int main(int argc, char** argv) {
                 sendBuffer.processID = processTable[nextChild].processID;
                 sendBuffer.selection = receiveBuffer.selection;
                 sendBuffer.resourceType = receiveBuffer.resourceType; 
-                sendMessageToUSER();
+                sendMessageToWORKER();
             }
             
             // If no more children are running and the maximum # of total children have been launched, end loop/program.
