@@ -297,9 +297,10 @@ int findMaximumLoopIndex() {
     for (i = PROCESS_COUNT - 1; i >= 0; i--) {
         if (processTable[i].occupied == 1) {
             return i;
-        }
     }
-    return 0;
+}
+
+return 0;
 }
 
 void removeFromProcessTable(pid_t pid) {
@@ -316,6 +317,7 @@ void removeFromProcessTable(pid_t pid) {
                 processTable[i].allocated[j] = 0;
                 processTable[i].request[j] = 0;
             }
+            
             processTable[i].blocked = 0;
             
             break;
@@ -748,7 +750,7 @@ void releaseResourcesFromTerminatedChildren(int *requestMatrix, int *allocationM
 
 /********************************************MESSAGE PASSING OPERATIONS************************************************/
 // Perform msgsnd() operations.
-void sendMessageToUSER() {
+void sendMessageToWORKER() {
     if (msgsnd(messageQueueID, &sendBuffer, sizeof(messageBuffer) - sizeof(long int), IPC_NOWAIT) == -1) {
         if (errno == ENOMSG) {
             // Keep running oss.c.
@@ -761,7 +763,7 @@ void sendMessageToUSER() {
 }
 
 // Perform nonblocking msgrcv() operations.
-void receiveMessageFromUSER(int i) {
+void receiveMessageFromWORKER(int i) {
     if (msgrcv(messageQueueID, &receiveBuffer, sizeof(messageBuffer), 0, IPC_NOWAIT) == -1) {
         if (errno == ENOMSG) {
             // Keep running oss.c
@@ -806,7 +808,6 @@ void printEventMessage(int event, int pid, int resource, int childIndex, bool re
         printf("++OSS: Generating process with PID %d at time %d:%lld\n\n", pid, systemClockSeconds, systemClockNano);
         fprintf(logOutputFP, "++OSS: Generating process with PID %d at time %d:%lld\n\n", pid, systemClockSeconds, systemClockNano);
     }
-        
     else if (event == REQUEST_RESOURCE) {
         printf("OSS: Detected Process P%d (PID %d) REQUESTING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
         fprintf(logOutputFP, "OSS: Detected Process P%d (PID %d) REQUESTING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
@@ -822,17 +823,14 @@ void printEventMessage(int event, int pid, int resource, int childIndex, bool re
             fprintf(logOutputFP, "P%d (PID %d) added to wait queue at time %d:%lld.\n", childIndex, pid, systemClockSeconds, systemClockNano);	
         }
     }
-        
     else if (event == RELEASE_RESOURCE) {
         printf("OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
         fprintf(logOutputFP, "OSS: Process P%d (PID %d) is RELEASING R%d at time %d:%lld.\n", childIndex, pid, resource, systemClockSeconds, systemClockNano);
     }
-        
     else if (event == BEGIN_DEADLOCK_ALGORITHM) {
         printf("OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
         fprintf(logOutputFP, "OSS: Running deadlock detection algorithm at time %d:%lld.\n", systemClockSeconds, systemClockNano);
-    }
-        
+    }	
     else if (event == DEADLOCK_TERMINATION) {
         printf("\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", childIndex, pid);
         fprintf(logOutputFP, "\n\tOSS: terminating P%d (PID %d) to remove deadlock.\n", childIndex, pid);
