@@ -173,8 +173,8 @@ void finishProcessesIfPossible(int *, int *, int *, bool *, int);
 void releaseResourcesFromTerminatedChildren(int *, int *, int *, int, int);
 
 // For message passing operations.
-void sendMessageToUSER();
-void receiveMessageFromUSER(int);
+void sendMessageToWORKER();
+void receiveMessageFromWORKER(int);
 
 // For output printout.
 void printHelpMessage();
