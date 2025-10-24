@@ -498,21 +498,25 @@ void printResourceTable(int matrix[]) {
     printf("OSS: Outputting resource table:\n");
     printf("\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
     printf("Resource table:\n");
-    printf("\t R0\t R1\t R2\t R3\t R4\n");
+    printf("%11s %7s %7s %7s %7s\n", "R0", "R1", "R2", "R3", "R4");
     
     int i, j, k;
     
     for (i = 0; i < 20; i++) {
-        printf("P%d\t ", i);
+        printf("P%d ", i);
         
         for (j = 0; j < 5; j++) {
             k = (5 * i) + j;
-            printf("%d\t ", matrix[k]);
+            if (i < 10 || j >= 1) {
+                printf("%7d ", matrix[k]);
+            }
+            else {
+                printf("%6d ", matrix[k]);
+            }
         }
         printf("\n");
     }
-    printf("\n\n");
-    
+    printf("\n\n");  
     printResourceTableToLogfile(matrix);
 }
 
@@ -520,17 +524,21 @@ void printResourceTableToLogfile(int matrix[]) {
     fprintf(logOutputFP, "OSS: Outputting resource table:\n");
     fprintf(logOutputFP, "\nOSS PID: %d  SysClockS: %d  SysClockNano: %lld\n", getpid(), systemClockSeconds, systemClockNano);
     fprintf(logOutputFP, "Resource table:\n");
-    fprintf(logOutputFP, "\t R0\t R1\t R2\t R3\t R4\n");
-    
+    fprintf(logOutputFP, "%11s %7s %7s %7s %7s\n", "R0", "R1", "R2", "R3", "R4");
+
     int i, j, k;
     
     for (i = 0; i < 20; i++) {
-        fprintf(logOutputFP, "P%d\t ", i);
+        fprintf(logOutputFP, "P%d ", i);
         
         for (j = 0; j < 5; j++) {
             k = (5 * i) + j;
-            
-            fprintf(logOutputFP, "%d\t ", matrix[k]);
+            if (i < 10 || j >= 1) {
+                fprintf(logOutputFP, "%7d ", matrix[k]);
+            }
+            else {
+                fprintf(logOutputFP, "%6d ", matrix[k]);
+            }
         }
         fprintf(logOutputFP, "\n");
     }
