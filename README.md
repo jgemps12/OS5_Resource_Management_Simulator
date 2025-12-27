@@ -13,6 +13,18 @@ The operating system keeps track of how many resources from each type are acquir
 Operation and flow of the system are regulated by two algorithms: **deadlock detection** and **deadlock recovery**. When two or more child processes request resources that are not currently available, they may wait indefinitely to access them. This situation causes a ***deadlock***, which prevents the affected processes from running. As a result, the operating system's functionality and throughput become compromised. To resolve this issue, these two algorithms come into play:
   - **Deadlock detection** determines whether the operating system is in a deadlocked state. It also selects the processes that are responsible for the deadlock.
   - **Deadlock recovery** terminates the processes selected by the deadlock detection algorithm. All the resources acquired by those processes are then released back into the system.
+## Key Features:
+- Uses shared memory to simulate a system clock that tracks time in seconds and nanoseconds.
+- Uses a message queue to communicate between OSS and its children.
+- Implements several vectors/matrices to support the capability of processes to **acquire or release resources**.
+- Uses **Round-Robin scheduling** to determine which child can interact with resources next.
+- Implements `fork()` and `waitpid()` for process creation and termination.
+- Uses a Process Control Block (PCB) table to record metadata, such as:
+  - Process ID (PID).
+  - Process start time.
+  - Indication of which resource types are **requested** and **acquired** by a child.
+  - Indication of whether a child is **blocked** (or unable to run temporarily).
+  
 ## Program Code Operations:
 ### Simulated System Clock:
 
