@@ -164,13 +164,14 @@ void printResourceTableToLogfile(int []);
 
 // For deadlock algorithm operations.
 bool runDeadlockAlgorithm(int *, int *, int *, int, int, MultiLevelQueue *);
+bool detectDeadlock(int *, int *, int *, int, bool *);
 void initializeWorkAndFinishVectors(int *, bool *, int *, int);
 void analyzeBlockedProcesses(int *, int *, int, bool *, bool *);
 bool canRequestBeFulfilled(int *, int *, int, int);
-bool handleDeadlock(int *, int *, int *, int, MultiLevelQueue *);
+bool recoverDeadlock(int *, int *, int *, int, int *, MultiLevelQueue *);
 int findABlockedProcessToKill();
-void finishProcessesIfPossible(int *, int *, int *, bool *, int); 
-void releaseResourcesFromTerminatedChildren(int *, int *, int *, int, int);
+void simulateProcessFinish(int *, int *, int *, bool *, int); 
+void releaseResourcesFromTerminatedChildren(int *, int *, int *, int, int, int);
 
 // For message passing operations.
 void sendMessageToWORKER();
