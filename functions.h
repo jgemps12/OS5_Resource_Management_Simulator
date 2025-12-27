@@ -166,10 +166,8 @@ void printResourceTableToLogfile(int []);
 bool runDeadlockAlgorithm(int *, int *, int *, int, int, MultiLevelQueue *);
 bool detectDeadlock(int *, int *, int *, int, bool *);
 void initializeWorkAndFinishVectors(int *, bool *, int *, int);
-void analyzeBlockedProcesses(int *, int *, int, bool *, bool *);
 bool canRequestBeFulfilled(int *, int *, int, int);
 bool recoverDeadlock(int *, int *, int *, int, int *, MultiLevelQueue *);
-int findABlockedProcessToKill();
 void simulateProcessFinish(int *, int *, int *, bool *, int); 
 void releaseResourcesFromTerminatedChildren(int *, int *, int *, int, int, int);
 
