@@ -558,12 +558,11 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
     // Message tells user that deadlock detection and recovery will begin. 
     printEventMessage(BEGIN_DEADLOCK_ALGORITHM, -1, -1, -1, false);
    
-//***** PHASE 1: DEADLOCK DETECTION---> look for any deadlocked processes, but do not handle them yet. *****//
+    /***** PHASE 1: DEADLOCK DETECTION---> look for any deadlocked processes, but do not handle them yet. *****/
     if (detectDeadlock(requestMatrix, allocationMatrix, allocationVector, resources, finish) == false) {
         printf("\tProcesses deadlocked:\tNONE.\n\n");
         fprintf(logOutputFP, "\tProcesses deadlocked:\tNONE.\n\n");
    
-        sleep(1);
         return false;
     }
 
@@ -580,7 +579,7 @@ bool runDeadlockAlgorithm(int *requestMatrix, int *allocationMatrix, int *alloca
         }
     }    
 
-//***** PHASE 2: DEADLOCK RECOVERY---> kill the first deadlocked process discovered by the algorithm.
+    /***** PHASE 2: DEADLOCK RECOVERY---> kill the first deadlocked process discovered by the algorithm. *****/
     recoverDeadlock(requestMatrix, allocationMatrix, allocationVector, resources, deadlockedPIDs, queue);
 
     return true;
@@ -628,24 +627,6 @@ void initializeWorkAndFinishVectors(int *work, bool *finish, int *allocationVect
     }
 }
 
-void analyzeBlockedProcesses(int *requestMatrix, int *work, int resources, bool *anyProcessesBlocked, bool *anyBlockedSatisfiable) {
-    *anyProcessesBlocked = false;
-    *anyBlockedSatisfiable = false;	
-    int p;
-    
-    // Check if at least two processes are blocked.
-    for (p = 0; p < PROCESS_COUNT; p++) {
-        if (processTable[p].occupied == 1 && processTable[p].blocked == 1) {
-            *anyProcessesBlocked = true;
-            
-            if (canRequestBeFulfilled(requestMatrix, work, p, resources) == true) {
-                *anyBlockedSatisfiable = true;
-                return;
-            }
-        }
-    }
-}
-
 // Determines whether a resource type request can be granted for a child.
 bool canRequestBeFulfilled(int *requestMatrix, int *work, int processIndex, int resources) {
     int location = processIndex * resources;
@@ -689,17 +670,6 @@ bool recoverDeadlock(int *requestMatrix, int *allocationMatrix, int *allocationV
     removeFromProcessTable(victimPID);
     
     return true;
-}
-
-// Determines the first victim PID in the Process Table to terminate.
-int findABlockedProcessToKill() {
-    int i;
-    for (i = 0; i < PROCESS_COUNT; i++) {
-        if (processTable[i].occupied == true && processTable[i].blocked == true) {
-            return i;
-        }
-    }
-    return -1;
 }
 
 void simulateProcessFinish(int *requestMatrix, int *allocationMatrix, int *work, bool *finish, int resources) {
@@ -751,6 +721,7 @@ void simulateProcessFinish(int *requestMatrix, int *allocationMatrix, int *work,
                 for (i = 0; i < resources; i++) {
                     work[i] += allocationMatrix[location + i];
                 }
+
                 finish[p] = true;
                 progress = true;
             }
@@ -767,6 +738,7 @@ void releaseResourcesFromTerminatedChildren(int *requestMatrix, int *allocationM
         allocationMatrix[location + i] = 0;
         requestMatrix[location + i] = 0;
     }
+    
     processTable[victimIndex].occupied = 0;
 }
 
@@ -994,7 +966,8 @@ void periodicallyTerminateProgram(int signal) {
     printf("Message queue removal and deletion complete.\n\n");
     
     // Graceful termination.
-    printf("Now exiting program...\n\n");   
+    printf("Now exiting program...\n\n");
+    
     printStatistics();
     
     exit(0);
