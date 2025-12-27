@@ -603,43 +603,6 @@ bool detectDeadlock(int *requestMatrix, int *allocationMatrix, int *allocationVe
     return false;
 }
 
-
-void initializeWorkAndFinishVectors(int *work, bool *finish, int *allocationVector, int resources) {
-    int i, p;
-    
-    // Initialize 'work' vector to hold currently available resources (i.e., the allocation vector).
-    for (i = 0; i < resources; i++) {
-        work[i] = allocationVector[i];
-    }
-    
-    // Initialize 'finish' vector. No existing processes can finish during vector initialization. 
-    // finish[p] equals 'true' when a process does not exist for a specific PCB table index (denoted by 'p').
-    for (p = 0; p < PROCESS_COUNT; p++) {
-        if (processTable[p].occupied == 0) {
-            finish[p] = true;
-        }
-        else if (processTable[p].blocked == 0) {
-            finish[p] = true;
-        }
-        else {
-            finish[p] = false;
-        }
-    }
-}
-
-// Determines whether a resource type request can be granted for a child.
-bool canRequestBeFulfilled(int *requestMatrix, int *work, int processIndex, int resources) {
-    int location = processIndex * resources;
-    int i;
-    
-    for (i = 0; i < resources; i++) {
-        if (requestMatrix[location + i] > work[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool recoverDeadlock(int *requestMatrix, int *allocationMatrix, int *allocationVector, int resources, int *deadlockedPIDs,  MultiLevelQueue *queue) {
     int victimIndex = deadlockedPIDs[0];;
     int i;
@@ -670,6 +633,29 @@ bool recoverDeadlock(int *requestMatrix, int *allocationMatrix, int *allocationV
     removeFromProcessTable(victimPID);
     
     return true;
+}
+
+void initializeWorkAndFinishVectors(int *work, bool *finish, int *allocationVector, int resources) {
+    int i, p;
+    
+    // Initialize 'work' vector to hold currently available resources (i.e., the allocation vector).
+    for (i = 0; i < resources; i++) {
+        work[i] = allocationVector[i];
+    }
+    
+    // Initialize 'finish' vector. No existing processes can finish during vector initialization. 
+    // finish[p] equals 'true' when a process does not exist for a specific PCB table index (denoted by 'p').
+    for (p = 0; p < PROCESS_COUNT; p++) {
+        if (processTable[p].occupied == 0) {
+            finish[p] = true;
+        }
+        else if (processTable[p].blocked == 0) {
+            finish[p] = true;
+        }
+        else {
+            finish[p] = false;
+        }
+    }
 }
 
 void simulateProcessFinish(int *requestMatrix, int *allocationMatrix, int *work, bool *finish, int resources) {
@@ -728,6 +714,19 @@ void simulateProcessFinish(int *requestMatrix, int *allocationMatrix, int *work,
         }
     }
     while (progress == true);
+}
+
+// Determines whether a resource type request can be granted for a child.
+bool canRequestBeFulfilled(int *requestMatrix, int *work, int processIndex, int resources) {
+    int location = processIndex * resources;
+    int i;
+    
+    for (i = 0; i < resources; i++) {
+        if (requestMatrix[location + i] > work[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // Release resources so that non-blocked children can continue requesting them.
