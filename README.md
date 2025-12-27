@@ -1,6 +1,8 @@
 # OS5: Resource Management Simulator
-  (Intro goes here)
-## Key Features:
+This program simulates an operating system by launching multiple child processes by incorporating elements from the first three OS projects. Those elements include Process Control Block (PCB) tables, simulated system clocks, message queues, and scheduling algorithms.
+
+Expanding on those projects, this OS simulation incorporates the concept of **resource management** to child processes. This simulated operating system works with **5 *resource types***, which include **10 *instances*** of each resource type. With the use of **Round-Robin scheduling**, communication between parent (OSS) and child (worker) occurs as the child process must choose one of *three* actions:
+
 
 ## Program Code Operations:
 ### Simulated System Clock:
