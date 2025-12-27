@@ -306,7 +306,6 @@ int main(int argc, char** argv) {
             *secondsShared = systemClockSeconds;
             *nanosecondsShared = systemClockNano;
             
-            
             // Print process table every half second of simulated system time. 
             long long int lastPrintoutTime = (lastTablePrintSeconds * oneBillionNanoseconds) + lastTablePrintNano;
             long long int actualPrintoutDifference = systemNanoOnly - lastPrintoutTime;
@@ -324,7 +323,7 @@ int main(int argc, char** argv) {
                 lastPrintedRequests = totalRequestsGranted;
             }
             
-            // Run deadlock detection algorithm after second of simulated system time. 
+            // Run deadlock detection algorithm after 1 second of simulated system time. 
             if (halfSecondTablePrintouts == 2) {
                 deadlock = runDeadlockAlgorithm(requestMatrix, allocationMatrix, allocationVector, childrenActive, RESOURCE_COUNT, resourceQueue);
                 
@@ -341,10 +340,6 @@ int main(int argc, char** argv) {
             incrementClock(&systemClockSeconds, &systemClockNano, determineBoundB(boundB));
             
             if (processTable[nextChild].blocked == 1) {
-                continue;
-            }
-            
-            if (processTable[nextChild].blocked == 1) {
                 numberOfBlockedChildren++;  
                 if (numberOfBlockedChildren == childrenActive) {
                     numberOfBlockedChildren = 0;
@@ -355,7 +350,7 @@ int main(int argc, char** argv) {
             if (processTable[nextChild].occupied == 0) {
                 nextChild++;
             }
-            
+            		
             if (processTable[nextChild].occupied == 1 && processTable[nextChild].blocked == 0) {	    
                 // Slow down program to prevent race conditions between times in Process Table and those analyzed in worker.c.
                 // Also prevents multiple empty Process Tables from printing towards the program's end.
