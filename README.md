@@ -1,9 +1,18 @@
 # OS5: Resource Management Simulator
 This program simulates an operating system by launching multiple child processes by incorporating elements from the first three OS projects. Those elements include Process Control Block (PCB) tables, simulated system clocks, message queues, and scheduling algorithms.
 
-Expanding on those projects, this OS simulation incorporates the concept of **resource management** to child processes. This simulated operating system works with **5 *resource types***, which include **10 *instances*** of each resource type. With the use of **Round-Robin scheduling**, communication between parent (OSS) and child (worker) occurs as the child process must choose one of *three* actions:
+Expanding on those projects, this OS simulation incorporates the concept of **resource management** to child processes. This simulated operating system works with **5 *resource types***, which include **10 *instances*** of each resource type. Communication between parent (OSS) and child (worker) occurs as the child process randomly chooses one of *three* actions:
+1. `REQUEST` - A child **requests** one of the 5 resource types.  
+    - If a resource request is *granted*, then the child will acquire that resource and hold onto it.
+    - If a resource request is *denied*, then the child will not acquire the resource. The child process will also become blocked and placed into a wait queue.
+2. `RELEASE` - A child **releases** *one* resource. It will then become available for another child process to acquire.
+4. `TERMINATE_PROCESS` - A child releases *all* of its resources, then **terminates gracefully**.
 
+The operating system keeps track of how many resources from each type are acquired by each child process. Meanwhile, **Round-Robin scheduling** determines the order in which children can choose from the three possible actions described above.
 
+Operation and flow of the system are regulated by two algorithms: **deadlock detection** and **deadlock recovery**. When two or more child processes request resources that are not currently available, they may wait indefinitely to access them. This situation causes a ***deadlock***, which prevents the affected processes from running. As a result, the operating system's functionality and throughput become compromised. To resolve this issue, these two algorithms come into play:
+  - **Deadlock detection** determines whether the operating system is in a deadlocked state. It also selects the processes that are responsible for the deadlock.
+  - **Deadlock recovery** terminates the processes selected by the deadlock detection algorithm. All the resources acquired by those processes are then released back into the system.
 ## Program Code Operations:
 ### Simulated System Clock:
 
@@ -81,8 +90,8 @@ A full Process Table contains 20 rows, one for each child process slot.
 - **PID** - the Process ID of a child inside a table row.
 - **StartS** - start time of the process in *seconds*.
 - **StartN** - start time of the process in *nanoseconds*.
-- **Allocated** - 
-- **Request** - 
+- **Allocated** - number of resources acquired for each resource type.
+- **Request** - for each resource type, is the resource being requested by the child? (**1** if *yes*; **0** if *no*)
 - **Blocked** - is the process blocked? (**1** if *yes*; **0** if *no*)
   
 ### Example 3: Resource Table Output
