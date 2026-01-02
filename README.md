@@ -268,11 +268,11 @@ P4       0       0       0       0       0
 A full Resource Table contains 20 rows, one for each child process slot. Each row holds the ***number of resources*** acquired for each of the five types, represented by columns `R0` though `R4`.
 
 ## Skills Learned:
-- 
-- 
-- 
--
-- 
+- Refactored message queues to communicate resource-based worker-to-OSS decisions from child processes.
+- Enforced limits on the acquisition of resources from child processes.
+- Designed deadlock detection and recovery algorithms to simulate how operating systems troubleshoot issues with unavailable system resources.
+- Utilized data structures, such as vectors and matrices, to accurately track available and acquired resources.
+- Implemented different strategies of child termination based on a process's situation, which involve using `waitpid()`, `kill()`, `WNOHANG`, `SIGTERM`, and `SIGKILL`.
 
 ## Tested On:
 - Ubuntu 20.04.6 (LTS)
