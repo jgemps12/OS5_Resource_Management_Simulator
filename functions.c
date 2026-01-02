@@ -860,8 +860,8 @@ void printChildTerminationMessage(int *allocationMatrix, int child, long int pro
     // If at least one resource type was released before termination.
     for (i = 0; i < 5; i++) {
         if (allocationMatrix[j] > 0) {
-            printf("P%d: %-5d", i, allocationMatrix[j]);
-            fprintf(logOutputFP, "P%d: %-5d", i, allocationMatrix[j]);
+            printf("R%d: %-5d", i, allocationMatrix[j]);
+            fprintf(logOutputFP, "R%d: %-5d", i, allocationMatrix[j]);
         }
         j++;
     }
