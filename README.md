@@ -20,6 +20,7 @@ Operation and flow of the system are regulated by two algorithms: **deadlock det
 - Uses a message queue to communicate between OSS and its children.
 - Implements several vectors/matrices to support the capability of processes to **acquire or release resources**.
 - Uses **Round-Robin scheduling** to determine which child can interact with resources next.
+- Implements the **deadlock detection** and **deadlock recovery** algorithms to regulate the flow of the OS and its resources.
 - Implements `fork()` and `waitpid()` for process creation and termination.
 - Uses a **Process Control Block (PCB)** table and a **resource table** to record metadata, such as:
   - Process ID (PID).
@@ -55,7 +56,7 @@ which means that resource types `R0`, `R1`, `R2`, `R3`, and `R4` all have 10 res
 
 #### ii.) Allocation Matrix:
 The **allocation matrix** is a two-dimensional structure with *20 rows* (representing a process ID) and *5 columns* (representing a resource type). Each element in the matrix stores the ***number of resources for each type that each child currently holds***. For instance, it can be said that:
-  - Process `P0` holds 2 instances of resource `R1` and 1 instance of resource `R3`.
+  - Process `P0` holds 2 instances of Resource `R1` and 1 instance of Resource `R3`.
   - Process `P2` holds 4 instances of `R2`.
   - Process `P3` holds 2 instances of `R0` and 7 instances of `R1`.
     
@@ -78,11 +79,12 @@ The **allocation vector** is another one-dimensional structure that also contain
 
 $$
 \text{allocationVector}\_{element} 
-= \text{requestVector}\_{element} - \sum_{i=0}^{n} \text{allocationMatrix}\_{column}
+= \text{resourceVector}\_{element} - \sum_{i=0}^{n - 1} \text{allocationMatrix}\_{column} 
+\text{; (where $n = 20$  $columns$)}
 $$
 
 
-where, for each element of the **allocation vector**, the corresponding element of the **request vector** is subtracted by the *sum* of the corresponding column in the **allocation matrix** above in **ii.) Allocation Matrix**. 
+where, for *each* element of the **allocation vector**, the corresponding element of the **resource vector** is subtracted by the *sum* of the corresponding column in the **allocation matrix** above in **ii.) Allocation Matrix**. 
 
 $$
 \text{allocationVector} 
@@ -96,10 +98,28 @@ $$
 After this calculation, the **allocation vector** shows that Resource `R0` has 8 instances available, Resource `R1` has 1 instance remaining, and so on.
 
 #### iv.) Request Matrix:
-### Deadlock Algorithms:
-#### i.)Deadlock Detection:
-#### ii.) Deadlock Recovery:
+The **request matrix** is another two-dimensional structure that contains 20 *rows* (each representing a process ID) and 5 *columns* (representing a resource type). Each element in the matrix stores a binary value (0 or 1) that signifies ***if a child is currently requesting a particular resource**. For instance, if:
+  - Process `P0` is requesting Resource `R1`.
+  - Process `P1` is requesting Resource `R2`.
+  - Process `P2` is requesting Resource `R4`.
+  - No other processes have requested any resources lately.
 
+Then the request matrix stores this information in this manner:
+
+$$
+\text{requestMatrix} = 
+\begin{Bmatrix}
+& \text{R0} & \text{R1} & \text{R2} & \text{R3} & \text{R4}\\
+\text{P0} & 0 & 1 & 0 & 0 & 0\\
+\text{P1} & 0 & 0 & 1 & 0 & 0\\
+\text{P2} & 0 & 0 & 0 & 0 & 1\\
+\text{P3} & 0 & 0 & 0 & 0 & 0\\
+\text{P4} & .. & .. & .. & .. & ..\\
+\text{P5} & .. & .. & .. & .. & ..
+\end{Bmatrix}
+$$
+
+Once a resource request has been *granted* for a process, the matrix row corresponding to that child becomes cleared (i.e., all row values become 0 again).
 
 ## How to Compile and Run:
 
@@ -135,26 +155,88 @@ This program runs:
 - 2 processes **simultaneously**.
 - Each process for a random time between 1 and 5 **seconds**, with 5 as the **maximum** time.
 - Each new process launch **incremented** to a minimum of every 200 ms.
-- A file called **INFO.txt** stores information about each child's **(CHANGE DESCRIPTION)**.
+- A file called **INFO.txt** stores information about each child's resource acquistion/release and termination.
   
 #### i.) Program Initialization:
+The program initializes by setting up the message queue and using **fork()** to launch a process with PID **1199859**. It is launched after `200,000,000` nanoseconds of system runtime as shown below:
+```bash
+Message queue is now set up.
+++OSS: Generating process with PID 1199859 at time 0:200000000
+```
 
-#### ii.) Process Runtime 
+#### ii.) Process REQUESTING a Resource (resource GRANTED):
+In this example below, Process **1199859** wants to acquire an instance of Resource `R2`. Since there is *at least one* instance of Resource `R2` available, Process **1199859**'s request is granted.
+```bash
+OSS: Detected Process P0 (PID 1199859) REQUESTING R2 at time 0:512032426.
+OSS: Granting P0 (PID 1199859)'s request for R2 at time 0:512032426.
+```
 
-#### iii.) Process Blocking:
+#### iii.) Process RELEASING a Resource:
+Process **1199859** wants to release an instance of Resource `R3`. 
+```bash
+OSS: Process P0 (PID 1199859) is RELEASING R3 at time 0:445698616.
+```
+By doing so, one extra instance of `R3` becomes available for any process to acquire.
+#### iv.) Process REQUESTING a Resource (resource DENIED, children BLOCKED):
 
- #### iv.) Process Unblocking:
+Later on in the program, Processes **1199859** and **1199862** both request an instance of Resource `R1`. However, no instances of Resource `R1` are available, so the child processes becomes *blocked* and sent to a **wait queue**.
+```bash
+OSS: Detected Process P0 (PID 1199859) REQUESTING R1 at time 1:349191608.
+OSS: No instances of R1 are available. P0 (PID 1199859) added to wait queue at time 1:349191608.
 
-#### v.) Process Termination:
+OSS: Detected Process P1 (PID 1199862) REQUESTING R1 at time 1:378758021.
+OSS: No instances of R1 are available. P1 (PID 1199862) added to wait queue at time 1:378758021.
+```
 
-#### vi.) Program Termination:
+#### v.) Deadlock Detection and Recovery:
+Every second of simulated system time, the **deadlock detection** and **deadlock recovery** algorithms both run to find and respond to a deadlock in the system. Processes P0 (**1199859**) and P1 (**1199862**) remain in the wait queue until the two algorithms perform one of two tasks:
+
+> 1.) **Terminate** one of the child processes.
+
+> 2.) **Unblock** all the child processes that were not terminated by the algorithms. Keep those processes in the system so they can continue requesting/releasing resources.
+
+In the example below, the **deadlock detection** algorithm determines that both Processes P0 (**1199859**) and P1 (**1199862**) cannot acquire resources and therefore, cannot run. The **deadlock recovery** algorithm then chooses which child process should be terminated. In this case, the algorithm decides to terminate Process P0 (**1199859**).
+
+```bash
+OSS: Running deadlock detection algorithm at time 2:58748801.
+        Processes deadlocked:   P0      P1
+        OSS: terminating P0 (PID 1199859) to remove deadlock.
+```
+
+Once Process P0 is terminated, P1 becomes unblocked and able to interact with the system's resources once again. Also, *all* the resources acquired by Process P0 become released into the system for other processes to utilize.
+
+**NOTE:** If the **deadlock detection** algorithm does *not* find any deadlocks in the system, this output will print as shown below:
+```bash
+OSS: Running deadlock detection algorithm at time 2:58748801.
+        Processes deadlocked:   NONE.
+```
+
+#### vi.) Process/Program Termination:
+A child process can terminate from the system in two different methods:
+
+> 1.) Through the **deadlock recovery algorithm** explained above.
+
+> 2.) Through a child process *choosing* to terminate based on OSS's communication with the worker.
+
+The output below illustrates what happens when a child terminates by choice:
+```
+---OSS: Process P1 (PID 1199862) TERMINATED.---
+        Resources released: R0: 4    R1: 8    R2: 5    R3: 4    R4: 6
+```
+In this example, Process **1199862** decided that it wanted to terminate on its own. This child has acquired 4 instances of Resource `R0`, 8 instances of `R1`, and so on. Since the child has terminated, *all* the acquired resources become released back into the system for other processes to use.
 
 ### Example 2: Process Control Block (PCB) Table Output
 Every half second of simulated system time, a Process Table prints to the console and log file as shown below:
 
 ```bash
-
-
+OSS PID: 1199858  SysClockS: 2  SysClockNano: 583492485
+Process Table:
+Entry     Occupied     PID        StartS     StartN         Allocated            Request              Blocked
+0         1            1199871    2          95739165       3  2  1  2  1        0  1  0  0  0        1
+1         1            1199862    0          446698616      4  8  5  4  5        0  1  0  0  0        1
+2         0            0          0          0              0  0  0  0  0        0  0  0  0  0        0
+3         0            0          0          0              0  0  0  0  0        0  0  0  0  0        0
+4         0            0          0          0              0  0  0  0  0        0  0  0  0  0        0
 ...
 ```
 A full Process Table contains 20 rows, one for each child process slot. 
@@ -166,18 +248,24 @@ A full Process Table contains 20 rows, one for each child process slot.
 - **StartS** - start time of the process in *seconds*.
 - **StartN** - start time of the process in *nanoseconds*.
 - **Allocated** - number of resources acquired for each resource type.
-- **Request** - for each resource type, is the resource being requested by the child? (**1** if *yes*; **0** if *no*)
+- **Request** - for each resource type, is the resource requested by the child? (**1** if *yes*; **0** if *no*)
 - **Blocked** - is the process blocked? (**1** if *yes*; **0** if *no*)
   
 ### Example 3: Resource Table Output
 Every 20 times a resource is requested to a child process, a Resource Table prints to the console and log file as shown below:
 
 ```bash
-
-
+OSS PID: 1199858  SysClockS: 2  SysClockNano: 380361818
+Resource table:
+         R0      R1      R2      R3      R4
+P0       2       0       1       2       1
+P1       5       8       5       4       4
+P2       0       0       0       0       0
+P3       0       0       0       0       0
+P4       0       0       0       0       0
 ...
 ```
-A full Resource Table contains 20 rows, one for each child process slot. 
+A full Resource Table contains 20 rows, one for each child process slot. Each row holds the ***number of resources*** acquired for each of the five types, represented by columns `R0` though `R4`.
 
 ## Skills Learned:
 - 
