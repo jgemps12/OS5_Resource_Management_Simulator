@@ -279,5 +279,10 @@ A full Resource Table contains 20 rows, one for each child process slot. Each ro
 - GCC 10.5.0
 - Make 4.2.1
 
+## Academic Integrity Notice:
+This repository contains coursework completed as part of my Bachelor's degree. It is publicly shared for educational and portfolio-related use only.
+
+If you are a student, DO NOT use this repository in any way that violates your institution's academic integrity policies. These violations include copying, reusing, or submitting any code (and other resources) as your own work.
+
 ## License:
 This project is licensed under the [MIT License](LICENSE).
